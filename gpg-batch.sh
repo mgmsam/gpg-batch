@@ -114,12 +114,83 @@ which ()
     return "$RETURN"
 }
 
-gpg_generate ()
+read_batch_file ()
 {
-    GPG_KEY_ID="$("$GPG" $GPG_OPTIONS --full-gen-key < "$1")"
+    while read -r OPTION || test "${OPTION:-}"
+    do
+        case "${OPTION:-}" in
+            ""|[#\;]*)
+                continue
+                ;;
+            %commit)
+                COMMIT=%commit
+                continue
+                ;;
+            %*)
+                test -z "${COMMIT:-}" || {
+                    COMMIT="$COMMIT$LF$OPTION"
+                    continue
+                }
+                ;;
+            "Expire-Date: "*)
+                EXPIRE_DATE="${OPTION##*[[:blank:]]}"
+                ;;
+            "Passphrase: "*)
+                PASSPHRASE="${OPTION##*[[:blank:]]}"
+                ;;
+            "Subkey-Type: "*)
+                OPTIONS_SUBKEY="${OPTIONS_SUBKEY:+"$OPTIONS_SUBKEY$LF"}$OPTION"
+                SUBKEY_COUNT="$((SUBKEY_COUNT + 1))"
+                continue
+                ;;
+            "Subkey-"*)
+                OPTIONS_SUBKEY="${OPTIONS_SUBKEY:+"$OPTIONS_SUBKEY$LF"}$OPTION"
+                continue
+        esac
+        OPTIONS_KEY="${OPTIONS_KEY:+"$OPTIONS_KEY$LF"}$OPTION"
+    done < "$1"
+
+    case "${OPTIONS_KEY:-}" in
+        ?*)
+            case "${SUBKEY_COUNT:-0}" in
+                1)
+                    OPTIONS_KEY="$OPTIONS_KEY$LF$OPTIONS_SUBKEY${COMMIT:+"$LF$COMMIT"}"
+                    OPTIONS_SUBKEY=
+                    ;;
+                *)
+                    OPTIONS_KEY="$OPTIONS_KEY${COMMIT:+"$LF$COMMIT"}"
+            esac
+    esac
+}
+
+run_gpg ()
+{
+    "$GPG" $GPG_OPTIONS "$1" <<BATCH
+$BATCH
+BATCH
+}
+
+gpg_generatekey ()
+{
+    test "${OPTIONS_KEY:-}" || return 0
+    BATCH="$OPTIONS_KEY"
+    GPG_KEY_ID="$(run_gpg --full-gen-key)"
     GPG_KEY_ID="${GPG_KEY_ID##*"$LF"}"
     GPG_KEY_ID="${GPG_KEY_ID##*[[:blank:]]}"
     say "key created: $GPG_KEY_ID"
+}
+
+gpg_addkey ()
+{
+    test "${OPTIONS_SUBKEY:-}" || return 0
+    BATCH="$OPTIONS_SUBKEY"
+    {
+        echo addkey
+        echo "$BATCH"
+        echo "$EXPIRE_DATE"
+        echo "$PASSPHRASE"
+        echo save
+    } | run_gpg --edit-key "$GPG_KEY_ID"
 }
 
 main ()
@@ -132,7 +203,9 @@ main ()
 
     for BATCH in "$@"
     do
-        gpg_generate "$BATCH"
+        read_batch_file "$BATCH"
+        gpg_generatekey
+        gpg_addkey
     done
 }
 
