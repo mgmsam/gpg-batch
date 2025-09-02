@@ -121,7 +121,7 @@ $BATCH
 BATCH
 }
 
-gpg_generatekey ()
+gpg_generate_key ()
 {
     BATCH="$KEY"
     KEY_ID="$(run_gpg --full-gen-key)"
@@ -137,8 +137,6 @@ gpg_addkey ()
     {
         echo addkey
         echo "$BATCH"
-        echo "$EXPIRE_DATE"
-        echo "$PASSPHRASE"
         echo save
     } | run_gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key "$KEY_ID"
     RETURN=0
@@ -161,10 +159,10 @@ run_batch ()
             case "${SUBKEY_COUNT:-}" in
                 ""|1)
                     KEY="$KEY$LF$SUBKEY"
-                    gpg_generatekey
+                    gpg_generate_key
                     ;;
                 *)
-                    gpg_generatekey
+                    gpg_generate_key
                     gpg_addkey
             esac
             ;;
