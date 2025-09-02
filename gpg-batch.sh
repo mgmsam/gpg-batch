@@ -116,7 +116,7 @@ which ()
 
 run_gpg ()
 {
-    "$GPG" $GPG_OPTIONS "$1" <<BATCH
+    "$GPG" $GPG_OPTIONS "$@" <<BATCH
 $BATCH
 BATCH
 }
@@ -140,7 +140,7 @@ gpg_addkey ()
         echo "$EXPIRE_DATE"
         echo "$PASSPHRASE"
         echo save
-    } | run_gpg --edit-key "$KEY_ID"
+    } | run_gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key "$KEY_ID"
     RETURN=0
     say "subkey created: $KEY_ID"
 }
@@ -219,7 +219,7 @@ main ()
 {
     PKG="${0##*/}"
     GPG="$(which gpg)" || die "gpg: command not found"
-    GPG_OPTIONS="--batch --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --verbose"
+    GPG_OPTIONS="--batch --expert --verbose"
     LF='
 '
 
