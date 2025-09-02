@@ -195,8 +195,9 @@ run_batch_file ()
             "Expire-Date: "*)
                 EXPIRE_DATE="${OPTION##*[[:blank:]]}"
                 ;;
-            "Passphrase: "*)
-                PASSPHRASE="${OPTION##*[[:blank:]]}"
+            "Passphrase:"*)
+                PASSPHRASE="${OPTION#Passphrase:}"
+                PASSPHRASE="${PASSPHRASE#"${PASSPHRASE%%[![:blank:]]*}"}"
                 ;;
             "Subkey-Type: "*)
                 OPTIONS_SUBKEY="${OPTIONS_SUBKEY:+"$OPTIONS_SUBKEY$LF"}$OPTION"
