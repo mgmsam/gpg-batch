@@ -133,7 +133,7 @@ gpg_generatekey ()
 
 gpg_addkey ()
 {
-    BATCH="$OPTIONS_SUBKEY"
+    BATCH="$SUBKEY"
     {
         echo addkey
         echo "$BATCH"
@@ -148,7 +148,7 @@ gpg_addkey ()
 set_batch_vars ()
 {
     OPTIONS_KEY=
-    OPTIONS_SUBKEY=
+    SUBKEY=
     SUBKEY_COUNT=
     EXPIRE_DATE=
     PASSPHRASE=
@@ -160,7 +160,7 @@ run_batch ()
         ?*)
             case "${SUBKEY_COUNT:-}" in
                 ""|1)
-                    OPTIONS_KEY="$OPTIONS_KEY$LF$OPTIONS_SUBKEY"
+                    OPTIONS_KEY="$OPTIONS_KEY$LF$SUBKEY"
                     gpg_generatekey
                     ;;
                 *)
@@ -200,17 +200,17 @@ run_batch_file ()
                 PASSPHRASE="${PASSPHRASE#"${PASSPHRASE%%[![:blank:]]*}"}"
                 ;;
             "Subkey-Type: "*)
-                OPTIONS_SUBKEY="${OPTIONS_SUBKEY:+"$OPTIONS_SUBKEY$LF"}$OPTION"
+                SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$OPTION"
                 SUBKEY_COUNT="$((SUBKEY_COUNT + 1))"
                 continue
                 ;;
             "Subkey-"*)
-                OPTIONS_SUBKEY="${OPTIONS_SUBKEY:+"$OPTIONS_SUBKEY$LF"}$OPTION"
+                SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$OPTION"
                 continue
         esac
         OPTIONS_KEY="${OPTIONS_KEY:+"$OPTIONS_KEY$LF"}$OPTION"
     done < "$1"
-    test "${OPTIONS_KEY:-"${OPTIONS_SUBKEY:-}"}" || return "$RETURN"
+    test "${OPTIONS_KEY:-"${SUBKEY:-}"}" || return "$RETURN"
     run_batch
     test -z "${CREATED_KEY_ID:-}" || say "key created: $CREATED_KEY_ID"
 }
