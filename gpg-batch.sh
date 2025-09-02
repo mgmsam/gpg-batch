@@ -114,8 +114,74 @@ which ()
     return "$RETURN"
 }
 
-read_batch_file ()
+run_gpg ()
 {
+    "$GPG" $GPG_OPTIONS "$1" <<BATCH
+$BATCH
+BATCH
+}
+
+gpg_generatekey ()
+{
+    BATCH="$OPTIONS_KEY"
+    GPG_KEY_ID="$(run_gpg --full-gen-key)"
+    GPG_KEY_ID="${GPG_KEY_ID##*"$LF"}"
+    GPG_KEY_ID="${GPG_KEY_ID##*[[:blank:]]}"
+    RETURN=0
+    say "key created: $GPG_KEY_ID"
+}
+
+gpg_addkey ()
+{
+    BATCH="$OPTIONS_SUBKEY"
+    {
+        echo addkey
+        echo "$BATCH"
+        echo "$EXPIRE_DATE"
+        echo "$PASSPHRASE"
+        echo save
+    } | run_gpg --edit-key "$GPG_KEY_ID"
+    RETURN=0
+    say "subkey created: $GPG_KEY_ID"
+}
+
+set_batch_vars ()
+{
+    OPTIONS_KEY=
+    OPTIONS_SUBKEY=
+    SUBKEY_COUNT=
+    EXPIRE_DATE=
+    PASSPHRASE=
+}
+
+run_batch ()
+{
+    case "${OPTIONS_KEY:-}" in
+        ?*)
+            case "${SUBKEY_COUNT:-}" in
+                ""|1)
+                    OPTIONS_KEY="$OPTIONS_KEY$LF$OPTIONS_SUBKEY"
+                    gpg_generatekey
+                    ;;
+                *)
+                    gpg_generatekey
+                    gpg_addkey
+            esac
+            ;;
+        *)
+            case "${SUBKEY_COUNT:-}" in
+                ?*)
+                    gpg_addkey
+                    ;;
+            esac
+    esac
+    set_batch_vars
+}
+
+run_batch_file ()
+{
+    RETURN=1
+    set_batch_vars
     while read -r OPTION || test "${OPTION:-}"
     do
         case "${OPTION:-}" in
@@ -123,14 +189,8 @@ read_batch_file ()
                 continue
                 ;;
             %commit)
-                COMMIT=%commit
+                run_batch
                 continue
-                ;;
-            %*)
-                test -z "${COMMIT:-}" || {
-                    COMMIT="$COMMIT$LF$OPTION"
-                    continue
-                }
                 ;;
             "Expire-Date: "*)
                 EXPIRE_DATE="${OPTION##*[[:blank:]]}"
@@ -149,48 +209,8 @@ read_batch_file ()
         esac
         OPTIONS_KEY="${OPTIONS_KEY:+"$OPTIONS_KEY$LF"}$OPTION"
     done < "$1"
-
-    case "${OPTIONS_KEY:-}" in
-        ?*)
-            case "${SUBKEY_COUNT:-0}" in
-                1)
-                    OPTIONS_KEY="$OPTIONS_KEY$LF$OPTIONS_SUBKEY${COMMIT:+"$LF$COMMIT"}"
-                    OPTIONS_SUBKEY=
-                    ;;
-                *)
-                    OPTIONS_KEY="$OPTIONS_KEY${COMMIT:+"$LF$COMMIT"}"
-            esac
-    esac
-}
-
-run_gpg ()
-{
-    "$GPG" $GPG_OPTIONS "$1" <<BATCH
-$BATCH
-BATCH
-}
-
-gpg_generatekey ()
-{
-    test "${OPTIONS_KEY:-}" || return 0
-    BATCH="$OPTIONS_KEY"
-    GPG_KEY_ID="$(run_gpg --full-gen-key)"
-    GPG_KEY_ID="${GPG_KEY_ID##*"$LF"}"
-    GPG_KEY_ID="${GPG_KEY_ID##*[[:blank:]]}"
-    say "key created: $GPG_KEY_ID"
-}
-
-gpg_addkey ()
-{
-    test "${OPTIONS_SUBKEY:-}" || return 0
-    BATCH="$OPTIONS_SUBKEY"
-    {
-        echo addkey
-        echo "$BATCH"
-        echo "$EXPIRE_DATE"
-        echo "$PASSPHRASE"
-        echo save
-    } | run_gpg --edit-key "$GPG_KEY_ID"
+    test "${OPTIONS_KEY:-"${OPTIONS_SUBKEY:-}"}" || return "$RETURN"
+    run_batch
 }
 
 main ()
@@ -203,10 +223,9 @@ main ()
 
     for BATCH in "$@"
     do
-        read_batch_file "$BATCH"
-        gpg_generatekey
-        gpg_addkey
+        run_batch_file "$BATCH"
     done
+    return "$RETURN"
 }
 
 main "$@"
