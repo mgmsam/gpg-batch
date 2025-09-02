@@ -1,0 +1,19 @@
+%echo Generating an OpenPGP key
+
+Key-Type: RSA
+Key-Length: 4096
+Key-Usage: sign
+
+Subkey-Type: RSA
+Subkey-Length: 4096
+Subkey-Usage: encrypt,auth
+
+Name-Real: Tester
+Name-Email: tester@example.com
+Name-Comment: rsa
+
+Expire-Date: 1d
+Passphrase: ""
+
+%commit
+%echo done
