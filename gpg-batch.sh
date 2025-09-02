@@ -116,7 +116,10 @@ which ()
 
 gpg_generate ()
 {
-    cat "$1" | "$GPG" $GPG_OPTIONS --full-gen-key
+    GPG_KEY_ID="$("$GPG" $GPG_OPTIONS --full-gen-key < "$1")"
+    GPG_KEY_ID="${GPG_KEY_ID##*"$LF"}"
+    GPG_KEY_ID="${GPG_KEY_ID##*[[:blank:]]}"
+    say "key created: $GPG_KEY_ID"
 }
 
 main ()
@@ -124,6 +127,8 @@ main ()
     PKG="${0##*/}"
     GPG="$(which gpg)" || die "gpg: command not found"
     GPG_OPTIONS="--batch --expert --command-fd=0 --status-fd=1 --pinentry-mode=loopback --verbose"
+    LF='
+'
 
     for BATCH in "$@"
     do
