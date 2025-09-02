@@ -123,7 +123,7 @@ BATCH
 
 gpg_generatekey ()
 {
-    BATCH="$OPTIONS_KEY"
+    BATCH="$KEY"
     KEY_ID="$(run_gpg --full-gen-key)"
     KEY_ID="${KEY_ID##*"$LF"}"
     KEY_ID="${KEY_ID##*[[:blank:]]}"
@@ -147,7 +147,7 @@ gpg_addkey ()
 
 set_batch_vars ()
 {
-    OPTIONS_KEY=
+    KEY=
     SUBKEY=
     SUBKEY_COUNT=
     EXPIRE_DATE=
@@ -156,11 +156,11 @@ set_batch_vars ()
 
 run_batch ()
 {
-    case "${OPTIONS_KEY:-}" in
+    case "${KEY:-}" in
         ?*)
             case "${SUBKEY_COUNT:-}" in
                 ""|1)
-                    OPTIONS_KEY="$OPTIONS_KEY$LF$SUBKEY"
+                    KEY="$KEY$LF$SUBKEY"
                     gpg_generatekey
                     ;;
                 *)
@@ -208,9 +208,9 @@ run_batch_file ()
                 SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$OPTION"
                 continue
         esac
-        OPTIONS_KEY="${OPTIONS_KEY:+"$OPTIONS_KEY$LF"}$OPTION"
+        KEY="${KEY:+"$KEY$LF"}$OPTION"
     done < "$1"
-    test "${OPTIONS_KEY:-"${SUBKEY:-}"}" || return "$RETURN"
+    test "${KEY:-"${SUBKEY:-}"}" || return "$RETURN"
     run_batch
     test -z "${CREATED_KEY_ID:-}" || say "key created: $CREATED_KEY_ID"
 }
