@@ -124,11 +124,11 @@ BATCH
 gpg_generatekey ()
 {
     BATCH="$OPTIONS_KEY"
-    GPG_KEY_ID="$(run_gpg --full-gen-key)"
-    GPG_KEY_ID="${GPG_KEY_ID##*"$LF"}"
-    GPG_KEY_ID="${GPG_KEY_ID##*[[:blank:]]}"
+    KEY_ID="$(run_gpg --full-gen-key)"
+    KEY_ID="${KEY_ID##*"$LF"}"
+    KEY_ID="${KEY_ID##*[[:blank:]]}"
     RETURN=0
-    say "key created: $GPG_KEY_ID"
+    CREATED_KEY_ID="${CREATED_KEY_ID:+"$CREATED_KEY_ID "}$KEY_ID"
 }
 
 gpg_addkey ()
@@ -140,9 +140,9 @@ gpg_addkey ()
         echo "$EXPIRE_DATE"
         echo "$PASSPHRASE"
         echo save
-    } | run_gpg --edit-key "$GPG_KEY_ID"
+    } | run_gpg --edit-key "$KEY_ID"
     RETURN=0
-    say "subkey created: $GPG_KEY_ID"
+    say "subkey created: $KEY_ID"
 }
 
 set_batch_vars ()
@@ -211,6 +211,7 @@ run_batch_file ()
     done < "$1"
     test "${OPTIONS_KEY:-"${OPTIONS_SUBKEY:-}"}" || return "$RETURN"
     run_batch
+    test -z "${CREATED_KEY_ID:-}" || say "key created: $CREATED_KEY_ID"
 }
 
 main ()
