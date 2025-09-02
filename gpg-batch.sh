@@ -182,9 +182,9 @@ run_batch_file ()
 {
     RETURN=1
     set_batch_vars
-    while read -r OPTION || test "${OPTION:-}"
+    while read -r KEYWORD || test "${KEYWORD:-}"
     do
-        case "${OPTION:-}" in
+        case "${KEYWORD:-}" in
             ""|[#\;]*)
                 continue
                 ;;
@@ -193,22 +193,22 @@ run_batch_file ()
                 continue
                 ;;
             "Expire-Date: "*)
-                EXPIRE_DATE="${OPTION##*[[:blank:]]}"
+                EXPIRE_DATE="${KEYWORD##*[[:blank:]]}"
                 ;;
             "Passphrase:"*)
-                PASSPHRASE="${OPTION#Passphrase:}"
+                PASSPHRASE="${KEYWORD#Passphrase:}"
                 PASSPHRASE="${PASSPHRASE#"${PASSPHRASE%%[![:blank:]]*}"}"
                 ;;
             "Subkey-Type: "*)
-                SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$OPTION"
+                SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
                 SUBKEY_COUNT="$((SUBKEY_COUNT + 1))"
                 continue
                 ;;
             "Subkey-"*)
-                SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$OPTION"
+                SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
                 continue
         esac
-        KEY="${KEY:+"$KEY$LF"}$OPTION"
+        KEY="${KEY:+"$KEY$LF"}$KEYWORD"
     done < "$1"
     test "${KEY:-"${SUBKEY:-}"}" || return "$RETURN"
     run_batch
