@@ -13,7 +13,8 @@ Name-Email: tester@example.com
 Name-Comment: ecc
 
 Expire-Date: 1d
-Passphrase: ""
+%no-protection
+%transient-key
 
 %commit
 %echo done
