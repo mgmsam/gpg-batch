@@ -133,14 +133,79 @@ gpg_generate_key ()
 
 gpg_addkey ()
 {
-    BATCH="$SUBKEY"
-    {
-        echo addkey
-        echo "$BATCH"
-        echo save
-    } | run_gpg --command-fd=0 --status-fd=1 --pinentry-mode=loopback --edit-key "$KEY_ID"
+    run_gpg --command-fd=0 --pinentry-mode=loopback --edit-key "$KEY_ID"
     RETURN=0
-    say "subkey created: $KEY_ID"
+}
+
+get_subkey ()
+{
+    SUBKEY_TYPE=
+    SUBKEY_LENGTH=
+    SUBKEY_CURVE=
+    SUBKEY_USAGE=
+    while read -r KEYWORD || test "${KEYWORD:-}"
+    do
+        case "$KEYWORD" in
+            Subkey-Type:*)
+                test -z "${SUBKEY_TYPE:-}" || return 0
+                SUBKEY_TYPE="${KEYWORD#Subkey-Type:}"
+                SUBKEY_TYPE="${SUBKEY_TYPE#"${SUBKEY_TYPE%%[![:blank:]]*}"}"
+                ;;
+            Subkey-Length:*)
+                case "${SUBKEY_TYPE:-}" in
+                    [eE][cC][cC]|[eE][cC][dD][hH]|[eE][cCdD][dD][sS][aA])
+                        return
+                esac
+                test -z "${SUBKEY_LENGTH:-}" || return 0
+                SUBKEY_LENGTH="${KEYWORD#Subkey-Length:}"
+                SUBKEY_LENGTH="${SUBKEY_LENGTH#"${SUBKEY_LENGTH%%[![:blank:]]*}"}"
+                ;;
+            Subkey-Curve:*)
+                case "${SUBKEY_TYPE:-}" in
+                    [dDrR][sS][aA]|[eE][lL][gG])
+                        return
+                esac
+                test -z "${SUBKEY_CURVE:-}" || return 0
+                SUBKEY_CURVE="${KEYWORD#Subkey-Curve:}"
+                SUBKEY_CURVE="${SUBKEY_CURVE#"${SUBKEY_CURVE%%[![:blank:]]*}"}"
+                ;;
+            Subkey-Usage:*)
+                test -z "${SUBKEY_USAGE:-}" || return 0
+                SUBKEY_USAGE="${KEYWORD#Subkey-Usage:}"
+                SUBKEY_USAGE="${SUBKEY_USAGE#"${SUBKEY_USAGE%%[![:blank:]]*}"}"
+                ;;
+        esac
+        SUBKEY="${SUBKEY#"$KEYWORD"}"
+        SUBKEY="${SUBKEY#"$LF"}"
+    done <<BATCH
+$SUBKEY
+BATCH
+}
+
+build_batch ()
+{
+    case "${SUBKEY_TYPE:-}" in
+        "")
+            return 1
+            ;;
+        [rRdD][sS][aA])
+            case "${SUBKEY_USAGE:-}" in
+                ""|*auth*)
+                    BATCH="7${LF}A${LF}Q$LF${SUBKEY_LENGTH:-}$LF"
+            esac
+            ;;
+    esac
+    BATCH="addkey$LF$BATCH$EXPIRE_DATE${LF}y${LF}save"
+}
+
+gpg_generate_subkey ()
+{
+    while test "${SUBKEY:-}"
+    do
+        get_subkey
+        build_batch || continue
+        gpg_addkey
+    done
 }
 
 set_batch_vars ()
@@ -163,13 +228,13 @@ run_batch ()
                     ;;
                 *)
                     gpg_generate_key
-                    gpg_addkey
+                    gpg_generate_subkey
             esac
             ;;
         *)
             case "${SUBKEY_COUNT:-}" in
                 ?*)
-                    gpg_addkey
+                    gpg_generate_subkey
                     ;;
             esac
     esac
@@ -217,7 +282,7 @@ main ()
 {
     PKG="${0##*/}"
     GPG="$(which gpg)" || die "gpg: command not found"
-    GPG_OPTIONS="--batch --expert --verbose"
+    GPG_OPTIONS="--batch --expert --verbose --status-fd=1"
     LF='
 '
 
