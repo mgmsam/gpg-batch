@@ -137,6 +137,29 @@ gpg_addkey ()
     RETURN=0
 }
 
+parse_keyword ()
+{
+    IFS="$IFS,"
+    set -- $1
+    while test $# -gt 0
+    do
+        case "$1" in
+            auth)
+                AUTH=auth
+                ;;
+            cert)
+                ;;
+            encrypt)
+                ENCRYPT=encrypt
+                ;;
+            sign)
+                SIGN=sign
+        esac
+        shift
+    done
+    echo ${AUTH:-} ${ENCRYPT:-} ${SIGN:-}
+}
+
 get_subkey ()
 {
     SUBKEY_TYPE=
@@ -173,6 +196,7 @@ get_subkey ()
                 test -z "${SUBKEY_USAGE:-}" || return 0
                 SUBKEY_USAGE="${KEYWORD#Subkey-Usage:}"
                 SUBKEY_USAGE="${SUBKEY_USAGE#"${SUBKEY_USAGE%%[![:blank:]]*}"}"
+                SUBKEY_USAGE="$(parse_keyword "$SUBKEY_USAGE")"
                 ;;
         esac
         SUBKEY="${SUBKEY#"$KEYWORD"}"
@@ -205,8 +229,27 @@ build_batch ()
             ;;
         [rR][sS][aA])
             case "${SUBKEY_USAGE:-}" in
-                ""|*auth*)
+                ""|"auth encrypt sign")
                     BATCH="8${LF}A${LF}Q$LF"
+                    ;;
+                "auth sign")
+                    BATCH="8${LF}E${LF}A${LF}Q$LF"
+                    ;;
+                "auth encrypt")
+                    BATCH="8${LF}S${LF}A${LF}Q$LF"
+                    ;;
+                "encrypt sign")
+                    BATCH="8${LF}Q$LF"
+                    ;;
+                auth)
+                    BATCH="8${LF}S${LF}E${LF}A${LF}Q$LF"
+                    ;;
+                encrypt)
+                    BATCH="6$LF"
+                    ;;
+                sign)
+                    BATCH="4$LF"
+                    ;;
             esac
             ;;
     esac
