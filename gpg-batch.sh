@@ -188,16 +188,25 @@ build_batch ()
         "")
             return 1
             ;;
+        [dD][sS][aA])
+            case "${SUBKEY_USAGE:-}" in
+                ""|*auth*)
+                    BATCH="7${LF}A${LF}Q$LF"
+                    ;;
+                *sign*)
+                    BATCH="3$LF"
+            esac
+            ;;
         ELG)
             case "${SUBKEY_USAGE:-}" in
                 ""|*encrypt*)
                     BATCH="5$LF"
             esac
             ;;
-        [rRdD][sS][aA])
+        [rR][sS][aA])
             case "${SUBKEY_USAGE:-}" in
                 ""|*auth*)
-                    BATCH="7${LF}A${LF}Q$LF"
+                    BATCH="8${LF}A${LF}Q$LF"
             esac
             ;;
     esac
