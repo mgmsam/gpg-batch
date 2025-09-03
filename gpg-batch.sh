@@ -415,26 +415,30 @@ run_batch_file ()
         case "${KEYWORD:-}" in
             ""|[#\;]*)
                 continue
-                ;;
+            ;;
             %commit)
                 run_batch
                 continue
-                ;;
+            ;;
+            Key-Type:*)
+                run_batch
+            ;;
             "Expire-Date: "*)
                 EXPIRE_DATE="${KEYWORD##*[[:blank:]]}"
-                ;;
+            ;;
             "Passphrase:"*)
                 PASSPHRASE="${KEYWORD#Passphrase:}"
                 PASSPHRASE="${PASSPHRASE#"${PASSPHRASE%%[![:blank:]]*}"}"
-                ;;
+            ;;
             "Subkey-Type: "*)
                 SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
                 SUBKEY_COUNT="$((SUBKEY_COUNT + 1))"
                 continue
-                ;;
+            ;;
             "Subkey-"*)
                 SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
                 continue
+            ;;
         esac
         KEY="${KEY:+"$KEY$LF"}$KEYWORD"
     done < "$1"
