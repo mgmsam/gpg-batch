@@ -137,10 +137,10 @@ gpg_addkey ()
     RETURN=0
 }
 
-parse_keyword ()
+parse_usage ()
 {
     IFS="$IFS,"
-    set -- $1
+    set -- $SUBKEY_USAGE
     while test $# -gt 0
     do
         case "$1" in
@@ -232,7 +232,7 @@ get_subkey ()
             Subkey-Usage:*)
                 test -z "${SUBKEY_USAGE:-}" || return 0
                 SUBKEY_USAGE="${KEYWORD#Subkey-Usage:}"
-                SUBKEY_USAGE="$(parse_keyword "$SUBKEY_USAGE")"
+                SUBKEY_USAGE="$(parse_usage)"
                 ;;
         esac
         SUBKEY="${SUBKEY#"$KEYWORD"}"
