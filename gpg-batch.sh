@@ -327,7 +327,7 @@ build_batch ()
                 ;;
             esac
         ;;
-        ELG)
+        ELG | ELG-E)
             case "${SUBKEY_USAGE:-}" in
                 "" | *encrypt*)
                     BATCH=5
