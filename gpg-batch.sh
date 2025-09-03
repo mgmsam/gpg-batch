@@ -160,6 +160,42 @@ parse_keyword ()
     echo ${AUTH:-} ${ENCRYPT:-} ${SIGN:-}
 }
 
+parse_curve ()
+{
+    case "${SUBKEY_CURVE:-}" in
+        cv25519)
+            echo 0
+        ;;
+        ed25519)
+            echo 1
+        ;;
+        ed448)
+            echo 2
+        ;;
+        nistp256)
+            echo 3
+        ;;
+        nistp384)
+            echo 4
+        ;;
+        nistp521)
+            echo 5
+        ;;
+        brainpoolP256r1)
+            echo 6
+        ;;
+        brainpoolP384r1)
+            echo 7
+        ;;
+        brainpoolP512r1)
+            echo 8
+        ;;
+        secp256k1)
+            echo 9
+        ;;
+    esac
+}
+
 get_subkey ()
 {
     SUBKEY_TYPE=
@@ -191,6 +227,7 @@ get_subkey ()
                 test -z "${SUBKEY_CURVE:-}" || return 0
                 SUBKEY_CURVE="${KEYWORD#Subkey-Curve:}"
                 SUBKEY_CURVE="${SUBKEY_CURVE#"${SUBKEY_CURVE%%[![:blank:]]*}"}"
+                SUBKEY_CURVE="$(parse_curve)"
                 ;;
             Subkey-Usage:*)
                 test -z "${SUBKEY_USAGE:-}" || return 0
@@ -210,52 +247,120 @@ build_batch ()
     case "${SUBKEY_TYPE:-}" in
         "")
             return 1
-            ;;
+        ;;
         [dD][sS][aA])
             case "${SUBKEY_USAGE:-}" in
-                ""|"auth sign")
-                    BATCH="7${LF}A${LF}Q$LF"
-                    ;;
+                "" | "auth sign")
+                    BATCH="7${LF}A${LF}Q"
+                ;;
                 auth)
-                    BATCH="7${LF}S${LF}A${LF}Q$LF"
-                    ;;
+                    BATCH="7${LF}S${LF}A${LF}Q"
+                ;;
                 sign)
-                    BATCH="3$LF"
+                    BATCH=3
+                ;;
             esac
-            ;;
+        ;;
+        [eE][cC][cC] | [eE][cC][dD][hH])
+            case "${SUBKEY_USAGE:-}" in
+                "" | encrypt)
+                    BATCH=12
+                ;;
+                *)
+                    return 2
+                ;;
+            esac;
+            case "${SUBKEY_CURVE:-}" in
+                0)
+                    BATCH="$BATCH${LF}1"
+                ;;
+                [1-9]*)
+                    BATCH="$BATCH${LF}$SUBKEY_CURVE"
+                ;;
+                *)
+                    return 2
+                ;;
+            esac
+        ;;
+        [eE][cC][dD][sS][aA])
+            case "${SUBKEY_USAGE:-}" in
+                "" | "auth sign")
+                    BATCH="11${LF}A${LF}Q"
+                ;;
+                auth)
+                    BATCH="11${LF}S${LF}A${LF}Q"
+                ;;
+                sign)
+                    BATCH=10
+                ;;
+                *)
+                    return 2
+                ;;
+            esac;
+            case "${SUBKEY_CURVE:-}" in
+                "" | [012])
+                    return 2
+                ;;
+                *)
+                    BATCH="$BATCH${LF}$SUBKEY_CURVE"
+                ;;
+            esac
+        ;;
+        [eE][dD][dD][sS][aA])
+            case "${SUBKEY_USAGE:-}" in
+                "" | "auth sign")
+                    BATCH="11${LF}A${LF}Q"
+                ;;
+                auth)
+                    BATCH="11${LF}S${LF}A${LF}Q"
+                ;;
+                sign)
+                    BATCH=10
+                ;;
+            esac;
+            case "${SUBKEY_CURVE:-}" in
+                "" | 0)
+                    return 2
+                ;;
+                *)
+                    BATCH="$BATCH${LF}$SUBKEY_CURVE"
+                ;;
+            esac
+        ;;
         ELG)
             case "${SUBKEY_USAGE:-}" in
-                ""|*encrypt*)
-                    BATCH="5$LF"
+                "" | *encrypt*)
+                    BATCH=5
+                ;;
             esac
-            ;;
+        ;;
         [rR][sS][aA])
             case "${SUBKEY_USAGE:-}" in
-                ""|"auth encrypt sign")
-                    BATCH="8${LF}A${LF}Q$LF"
-                    ;;
+                "" | "auth encrypt sign")
+                    BATCH="8${LF}A${LF}Q"
+                ;;
                 "auth sign")
-                    BATCH="8${LF}E${LF}A${LF}Q$LF"
-                    ;;
+                    BATCH="8${LF}E${LF}A${LF}Q"
+                ;;
                 "auth encrypt")
-                    BATCH="8${LF}S${LF}A${LF}Q$LF"
-                    ;;
+                    BATCH="8${LF}S${LF}A${LF}Q"
+                ;;
                 "encrypt sign")
-                    BATCH="8${LF}Q$LF"
-                    ;;
+                    BATCH="8${LF}Q"
+                ;;
                 auth)
-                    BATCH="8${LF}S${LF}E${LF}A${LF}Q$LF"
-                    ;;
+                    BATCH="8${LF}S${LF}E${LF}A${LF}Q"
+                ;;
                 encrypt)
-                    BATCH="6$LF"
-                    ;;
+                    BATCH=6
+                ;;
                 sign)
-                    BATCH="4$LF"
-                    ;;
+                    BATCH=4
+                ;;
             esac
-            ;;
-    esac
-    BATCH="addkey$LF$BATCH${SUBKEY_LENGTH:-}$LF$EXPIRE_DATE${LF}y${LF}save"
+        ;;
+    esac;
+    BATCH="addkey$LF$BATCH$LF${SUBKEY_LENGTH:-${SUBKEY_CURVE:-}}$LF$EXPIRE_DATE${LF}y${LF}save"
 }
 
 gpg_generate_subkey ()
