@@ -188,14 +188,20 @@ build_batch ()
         "")
             return 1
             ;;
+        ELG)
+            case "${SUBKEY_USAGE:-}" in
+                ""|*encrypt*)
+                    BATCH="5$LF"
+            esac
+            ;;
         [rRdD][sS][aA])
             case "${SUBKEY_USAGE:-}" in
                 ""|*auth*)
-                    BATCH="7${LF}A${LF}Q$LF${SUBKEY_LENGTH:-}$LF"
+                    BATCH="7${LF}A${LF}Q$LF"
             esac
             ;;
     esac
-    BATCH="addkey$LF$BATCH$EXPIRE_DATE${LF}y${LF}save"
+    BATCH="addkey$LF$BATCH${SUBKEY_LENGTH:-}$LF$EXPIRE_DATE${LF}y${LF}save"
 }
 
 gpg_generate_subkey ()
