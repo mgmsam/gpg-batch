@@ -423,19 +423,19 @@ run_batch_file ()
             Key-Type:*)
                 run_batch
             ;;
-            "Expire-Date: "*)
+            Expire-Date:*)
                 EXPIRE_DATE="${KEYWORD##*[[:blank:]]}"
             ;;
-            "Passphrase:"*)
+            Passphrase:*)
                 PASSPHRASE="${KEYWORD#Passphrase:}"
                 PASSPHRASE="${PASSPHRASE#"${PASSPHRASE%%[![:blank:]]*}"}"
             ;;
-            "Subkey-Type: "*)
+            Subkey-Type:*)
                 SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
                 SUBKEY_COUNT="$((SUBKEY_COUNT + 1))"
                 continue
             ;;
-            "Subkey-"*)
+            Subkey-Length:* | Subkey-Curve:* | Subkey-Usage:*)
                 SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
                 continue
             ;;
