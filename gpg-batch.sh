@@ -195,7 +195,6 @@ get_subkey ()
             Subkey-Usage:*)
                 test -z "${SUBKEY_USAGE:-}" || return 0
                 SUBKEY_USAGE="${KEYWORD#Subkey-Usage:}"
-                SUBKEY_USAGE="${SUBKEY_USAGE#"${SUBKEY_USAGE%%[![:blank:]]*}"}"
                 SUBKEY_USAGE="$(parse_keyword "$SUBKEY_USAGE")"
                 ;;
         esac
