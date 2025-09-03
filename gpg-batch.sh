@@ -214,10 +214,13 @@ build_batch ()
             ;;
         [dD][sS][aA])
             case "${SUBKEY_USAGE:-}" in
-                ""|*auth*)
+                ""|"auth sign")
                     BATCH="7${LF}A${LF}Q$LF"
                     ;;
-                *sign*)
+                auth)
+                    BATCH="7${LF}S${LF}A${LF}Q$LF"
+                    ;;
+                sign)
                     BATCH="3$LF"
             esac
             ;;
