@@ -420,7 +420,7 @@ run_batch_file ()
                 continue
             ;;
             Key-Type:*)
-                run_batch
+                test -z "${KEY_TYPE:-}" || run_batch
             ;;
             Expire-Date:*)
                 EXPIRE_DATE="${KEYWORD##*[[:blank:]]}"
