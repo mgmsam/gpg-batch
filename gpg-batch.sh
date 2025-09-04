@@ -202,12 +202,12 @@ get_subkey ()
     SUBKEY_LENGTH=
     SUBKEY_CURVE=
     SUBKEY_USAGE=
-    while read -r KEYWORD || test "${KEYWORD:-}"
+    while read -r SUBKEYWORD || test "${SUBKEYWORD:-}"
     do
-        case "$KEYWORD" in
+        case "$SUBKEYWORD" in
             Subkey-Type:*)
                 test -z "${SUBKEY_TYPE:-}" || return 0
-                SUBKEY_TYPE="${KEYWORD#Subkey-Type:}"
+                SUBKEY_TYPE="${SUBKEYWORD#Subkey-Type:}"
                 SUBKEY_TYPE="${SUBKEY_TYPE#"${SUBKEY_TYPE%%[![:blank:]]*}"}"
                 ;;
             Subkey-Length:*)
@@ -216,7 +216,7 @@ get_subkey ()
                         return
                 esac
                 test -z "${SUBKEY_LENGTH:-}" || return 0
-                SUBKEY_LENGTH="${KEYWORD#Subkey-Length:}"
+                SUBKEY_LENGTH="${SUBKEYWORD#Subkey-Length:}"
                 SUBKEY_LENGTH="${SUBKEY_LENGTH#"${SUBKEY_LENGTH%%[![:blank:]]*}"}"
                 ;;
             Subkey-Curve:*)
@@ -225,17 +225,17 @@ get_subkey ()
                         return
                 esac
                 test -z "${SUBKEY_CURVE:-}" || return 0
-                SUBKEY_CURVE="${KEYWORD#Subkey-Curve:}"
+                SUBKEY_CURVE="${SUBKEYWORD#Subkey-Curve:}"
                 SUBKEY_CURVE="${SUBKEY_CURVE#"${SUBKEY_CURVE%%[![:blank:]]*}"}"
                 SUBKEY_CURVE="$(parse_curve)"
                 ;;
             Subkey-Usage:*)
                 test -z "${SUBKEY_USAGE:-}" || return 0
-                SUBKEY_USAGE="${KEYWORD#Subkey-Usage:}"
+                SUBKEY_USAGE="${SUBKEYWORD#Subkey-Usage:}"
                 SUBKEY_USAGE="$(parse_usage)"
                 ;;
         esac
-        SUBKEY="${SUBKEY#"$KEYWORD"}"
+        SUBKEY="${SUBKEY#"$SUBKEYWORD"}"
         SUBKEY="${SUBKEY#"$LF"}"
     done <<BATCH
 $SUBKEY
@@ -377,7 +377,10 @@ set_batch_vars ()
 {
     KEY=
     SUBKEY=
-    SUBKEY_COUNT=
+    SUBKEY_TYPE=
+    SUBKEY_LENGTH=
+    SUBKEY_CURVE=
+    SUBKEY_USAGE=
     EXPIRE_DATE=
     PASSPHRASE=
 }
@@ -386,22 +389,13 @@ run_batch ()
 {
     case "${KEY:-}" in
         ?*)
-            case "${SUBKEY_COUNT:-}" in
-                ""|1)
-                    KEY="$KEY$LF$SUBKEY"
-                    gpg_generate_key
-                    ;;
-                *)
-                    gpg_generate_key
-                    gpg_generate_subkey
-            esac
-            ;;
-        *)
-            case "${SUBKEY_COUNT:-}" in
-                ?*)
-                    gpg_generate_subkey
-                    ;;
-            esac
+            gpg_generate_key
+        ;;
+    esac
+    case "${SUBKEY:-}" in
+        ?*)
+            gpg_generate_subkey
+        ;;
     esac
     set_batch_vars
 }
@@ -431,13 +425,28 @@ run_batch_file ()
                 PASSPHRASE="${PASSPHRASE#"${PASSPHRASE%%[![:blank:]]*}"}"
             ;;
             Subkey-Type:*)
-                SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
-                SUBKEY_COUNT="$((SUBKEY_COUNT + 1))"
-                continue
+                test "${SUBKEY_TYPE:-}" && {
+                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
+                    continue
+                } || SUBKEY_TYPE=1
             ;;
-            Subkey-Length:* | Subkey-Curve:* | Subkey-Usage:*)
-                SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
-                continue
+            Subkey-Length:*)
+                test "${SUBKEY_LENGTH:-}" && {
+                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
+                    continue
+                } || SUBKEY_LENGTH=1
+            ;;
+            Subkey-Curve:*)
+                test "${SUBKEY_CURVE:-}" && {
+                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
+                    continue
+                } || SUBKEY_CURVE=1
+            ;;
+            Subkey-Usage:*)
+                test "${SUBKEY_USAGE:-}" && {
+                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
+                    continue
+                } || SUBKEY_USAGE=1
             ;;
         esac
         KEY="${KEY:+"$KEY$LF"}$KEYWORD"
