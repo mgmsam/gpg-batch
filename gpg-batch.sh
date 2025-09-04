@@ -248,7 +248,39 @@ build_batch ()
         "")
             return 1
         ;;
-        [dD][sS][aA])
+        1 | [rR][sS][aA])
+            case "${SUBKEY_USAGE:-}" in
+                "" | "auth encrypt sign")
+                    BATCH="8${LF}A${LF}Q"
+                ;;
+                "auth sign")
+                    BATCH="8${LF}E${LF}A${LF}Q"
+                ;;
+                "auth encrypt")
+                    BATCH="8${LF}S${LF}A${LF}Q"
+                ;;
+                "encrypt sign")
+                    BATCH="8${LF}Q"
+                ;;
+                auth)
+                    BATCH="8${LF}S${LF}E${LF}A${LF}Q"
+                ;;
+                encrypt)
+                    BATCH=6
+                ;;
+                sign)
+                    BATCH=4
+                ;;
+            esac
+        ;;
+        16 | ELG | ELG-E)
+            case "${SUBKEY_USAGE:-}" in
+                "" | *encrypt*)
+                    BATCH=5
+                ;;
+            esac
+        ;;
+        17 | [dD][sS][aA])
             case "${SUBKEY_USAGE:-}" in
                 "" | "auth sign")
                     BATCH="7${LF}A${LF}Q"
@@ -261,7 +293,7 @@ build_batch ()
                 ;;
             esac
         ;;
-        [eE][cC][cC] | [eE][cC][dD][hH])
+        18 | [eE][cC][cC] | [eE][cC][dD][hH])
             case "${SUBKEY_USAGE:-}" in
                 "" | encrypt)
                     BATCH=12
@@ -282,7 +314,7 @@ build_batch ()
                 ;;
             esac
         ;;
-        [eE][cC][dD][sS][aA])
+        19 | [eE][cC][dD][sS][aA])
             case "${SUBKEY_USAGE:-}" in
                 "" | "auth sign")
                     BATCH="11${LF}A${LF}Q"
@@ -306,7 +338,7 @@ build_batch ()
                 ;;
             esac
         ;;
-        [eE][dD][dD][sS][aA])
+        22 | [eE][dD][dD][sS][aA])
             case "${SUBKEY_USAGE:-}" in
                 "" | "auth sign")
                     BATCH="11${LF}A${LF}Q"
@@ -324,38 +356,6 @@ build_batch ()
                 ;;
                 *)
                     BATCH="$BATCH${LF}$SUBKEY_CURVE"
-                ;;
-            esac
-        ;;
-        ELG | ELG-E)
-            case "${SUBKEY_USAGE:-}" in
-                "" | *encrypt*)
-                    BATCH=5
-                ;;
-            esac
-        ;;
-        [rR][sS][aA])
-            case "${SUBKEY_USAGE:-}" in
-                "" | "auth encrypt sign")
-                    BATCH="8${LF}A${LF}Q"
-                ;;
-                "auth sign")
-                    BATCH="8${LF}E${LF}A${LF}Q"
-                ;;
-                "auth encrypt")
-                    BATCH="8${LF}S${LF}A${LF}Q"
-                ;;
-                "encrypt sign")
-                    BATCH="8${LF}Q"
-                ;;
-                auth)
-                    BATCH="8${LF}S${LF}E${LF}A${LF}Q"
-                ;;
-                encrypt)
-                    BATCH=6
-                ;;
-                sign)
-                    BATCH=4
                 ;;
             esac
         ;;
