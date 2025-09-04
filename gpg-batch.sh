@@ -124,11 +124,15 @@ BATCH
 gpg_generate_key ()
 {
     BATCH="$KEY"
-    KEY_ID="$(run_gpg --full-gen-key)"
-    KEY_ID="${KEY_ID##*"$LF"}"
-    KEY_ID="${KEY_ID##*[[:blank:]]}"
-    RETURN=0
-    CREATED_KEY_ID="${CREATED_KEY_ID:+"$CREATED_KEY_ID "}$KEY_ID"
+    if KEY_ID="$(run_gpg --full-gen-key "$@")"
+    then
+        KEY_ID="${KEY_ID##*"$LF"}"
+        KEY_ID="${KEY_ID##*[[:blank:]]}"
+        CREATED_KEY_ID="${CREATED_KEY_ID:+"$CREATED_KEY_ID "}$KEY_ID"
+        RETURN=0
+    else
+        return $?
+    fi
 }
 
 gpg_addkey ()
@@ -389,9 +393,10 @@ run_batch ()
 {
     case "${KEY:-}" in
         ?*)
+            gpg_generate_key --dry-run &&
             gpg_generate_key
         ;;
-    esac
+    esac &&
     case "${SUBKEY:-}" in
         ?*)
             gpg_generate_subkey
