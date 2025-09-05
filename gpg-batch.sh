@@ -392,6 +392,7 @@ CANVAS
 check_key ()
 {
     ORIGINAL_KEY="$KEY"
+    KEY="$KEY$LF%no-protection"
     ORIGINAL_GNUPGHOME="${GNUPGHOME:-}"
     export   GNUPGHOME="$TMP_GNUPGHOME"
     while :
