@@ -276,11 +276,7 @@ build_batch ()
             esac
         ;;
         16 | ELG | ELG-E)
-            case "${SUBKEY_USAGE:-}" in
-                "" | *encrypt*)
-                    BATCH=5
-                ;;
-            esac
+            BATCH=5
         ;;
         17 | [dD][sS][aA])
             case "${SUBKEY_USAGE:-}" in
@@ -296,27 +292,16 @@ build_batch ()
             esac
         ;;
         18 | [eE][cC][cC] | [eE][cC][dD][hH])
-            case "${SUBKEY_USAGE:-}" in
-                "" | encrypt)
-                    BATCH=12
-                ;;
-                *)
-                    return 2
-                ;;
-            esac;
             case "${SUBKEY_CURVE:-}" in
                 0)
-                    BATCH="$BATCH${LF}1"
+                    BATCH="12${LF}1"
                 ;;
                 [1-9]*)
-                    BATCH="$BATCH${LF}$SUBKEY_CURVE"
-                ;;
-                *)
-                    return 2
+                    BATCH="12${LF}$SUBKEY_CURVE"
                 ;;
             esac
         ;;
-        19 | [eE][cC][dD][sS][aA])
+        19 | 22 | [eE][cCdD][dD][sS][aA])
             case "${SUBKEY_USAGE:-}" in
                 "" | "auth sign")
                     BATCH="11${LF}A${LF}Q"
@@ -327,41 +312,10 @@ build_batch ()
                 sign)
                     BATCH=10
                 ;;
-                *)
-                    return 2
-                ;;
-            esac;
-            case "${SUBKEY_CURVE:-}" in
-                "" | [012])
-                    return 2
-                ;;
-                *)
-                    BATCH="$BATCH${LF}$SUBKEY_CURVE"
-                ;;
             esac
+            BATCH="$BATCH${LF}$SUBKEY_CURVE"
         ;;
-        22 | [eE][dD][dD][sS][aA])
-            case "${SUBKEY_USAGE:-}" in
-                "" | "auth sign")
-                    BATCH="11${LF}A${LF}Q"
-                ;;
-                auth)
-                    BATCH="11${LF}S${LF}A${LF}Q"
-                ;;
-                sign)
-                    BATCH=10
-                ;;
-            esac;
-            case "${SUBKEY_CURVE:-}" in
-                "" | 0)
-                    return 2
-                ;;
-                *)
-                    BATCH="$BATCH${LF}$SUBKEY_CURVE"
-                ;;
-            esac
-        ;;
-    esac;
+    esac
     BATCH="addkey$LF$BATCH$LF${SUBKEY_LENGTH:-${SUBKEY_CURVE:-}}$LF$EXPIRE_DATE${LF}y${LF}save"
 }
 
