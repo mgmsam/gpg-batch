@@ -476,7 +476,7 @@ main ()
 {
     PKG="${0##*/}"
     GPG="$(which gpg)" || die "gpg: command not found"
-    GPG_OPTIONS="--batch --expert --verbose --status-fd=1"
+    GPG_OPTIONS="--batch --expert --verbose --status-fd=1 --no-auto-check-trustdb"
     TMP_GNUPGHOME="${TMP_GNUPGHOME:-"$(mktempdir)"}" || die "$TMP_GNUPGHOME"
     LF='
 '
