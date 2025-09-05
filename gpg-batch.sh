@@ -323,8 +323,8 @@ gpg_generate_subkey ()
     while test "${SUBKEY:-}"
     do
         get_subkey
-        build_batch || continue
-        gpg_addkey
+        build_batch
+        gpg_addkey || RETURN=$?
     done
 }
 
@@ -444,7 +444,7 @@ run_batch_file ()
         esac
         KEY="${KEY:+"$KEY$LF"}${KEYWORD:-}"
     done < "$1"
-    test "${KEY:-"${SUBKEY:-}"}" || return "$RETURN"
+    test "${KEY:-"${SUBKEY:-}"}" || return 0
     run_batch
     test -z "${CREATED_KEY_ID:-}" || say "key created: $CREATED_KEY_ID"
 }
