@@ -114,6 +114,27 @@ which ()
     return "$RETURN"
 }
 
+mktempdir ()
+{
+    TMPDIR="${TMPDIR:-/tmp}"
+    TRYCOUNT=3
+    while :
+    do
+        TMPTRG="$TMPDIR/tmp.$(2>/dev/null date +%s)"
+        test -e "$TMPTRG" || {
+            >/dev/null 2>&1 mkdir -p -- "$TMPTRG" && {
+                echo "$TMPTRG"
+                return
+            }
+        } || :
+        TRYCOUNT="$((TRYCOUNT - 1))"
+        test "$TRYCOUNT" -gt 0 || {
+            echo "mktempdir: failed to create directory: -- '$TMPTRG'"
+            return 1
+        }
+    done
+}
+
 run_gpg ()
 {
     "$GPG" $GPG_OPTIONS "$@" <<BATCH
@@ -373,6 +394,8 @@ BATCH
 check_key ()
 {
     ORIGINAL_KEY="$KEY"
+    ORIGINAL_GNUPGHOME="${GNUPGHOME:-}"
+    export   GNUPGHOME="$TMP_GNUPGHOME"
     while :
     do
         DRY_RUN=yes
@@ -384,6 +407,7 @@ check_key ()
             *)
                 DRY_RUN=
                 KEY="$ORIGINAL_KEY"
+                GNUPGHOME="${ORIGINAL_GNUPGHOME:-}"
                 return
         esac
     done
@@ -453,6 +477,7 @@ main ()
     PKG="${0##*/}"
     GPG="$(which gpg)" || die "gpg: command not found"
     GPG_OPTIONS="--batch --expert --verbose --status-fd=1"
+    TMP_GNUPGHOME="${TMP_GNUPGHOME:-"$(mktempdir)"}" || die "$TMP_GNUPGHOME"
     LF='
 '
 
@@ -461,6 +486,7 @@ main ()
         run_batch_file "$BATCH"
     done
     test -z "${CREATED_KEY_ID:-}" || say 0 "key created: $CREATED_KEY_ID"
+    STATUS="$(2>&1 rm -rvf -- "$TMP_GNUPGHOME")" || die "[TMP_GNUPGHOME] $STATUS"
     return "${RETURN:-0}"
 }
 
