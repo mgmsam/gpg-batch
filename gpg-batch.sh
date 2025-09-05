@@ -375,7 +375,7 @@ BATCH
 
 check_key ()
 {
-    SAVE_KEY="$KEY"
+    ORIGINAL_KEY="$KEY"
     while :
     do
         DRY_RUN=yes
@@ -386,7 +386,7 @@ check_key ()
             ;;
             *)
                 DRY_RUN=
-                KEY="$SAVE_KEY"
+                KEY="$ORIGINAL_KEY"
                 return
         esac
     done
