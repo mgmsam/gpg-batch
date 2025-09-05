@@ -428,7 +428,10 @@ run_batch ()
         ?*)
             gpg_generate_subkey
         ;;
-    esac || GPG_EXIT=$?
+    esac || {
+        GPG_EXIT=$?
+        say "$GPG_EXIT" "error in the file: -- '$BATCH_FILE'"
+    }
     set_batch_vars
 }
 
@@ -499,9 +502,9 @@ main ()
     LF='
 '
 
-    for BATCH in "$@"
+    for BATCH_FILE in "$@"
     do
-        run_batch_file "$BATCH"
+        run_batch_file "$BATCH_FILE"
     done
     test -z "${CREATED_KEY_ID:-}" || say 0 "key created: $CREATED_KEY_ID"
     STATUS="$(2>&1 rm -rvf -- "$TMP_GNUPGHOME")" || die "[TMP_GNUPGHOME] $STATUS"
