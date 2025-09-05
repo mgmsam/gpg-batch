@@ -132,7 +132,7 @@ gpg_generate_key ()
             CREATED_KEY_ID="${CREATED_KEY_ID:+"$CREATED_KEY_ID "}$KEY_ID"
         }
     else
-        return $?
+        return
     fi
 }
 
