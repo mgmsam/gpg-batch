@@ -129,7 +129,6 @@ gpg_generate_key ()
         KEY_ID="${KEY_ID##*"$LF"}"
         KEY_ID="${KEY_ID##*[[:blank:]]}"
         CREATED_KEY_ID="${CREATED_KEY_ID:+"$CREATED_KEY_ID "}$KEY_ID"
-        RETURN=0
     else
         return $?
     fi
@@ -138,7 +137,6 @@ gpg_generate_key ()
 gpg_addkey ()
 {
     run_gpg --command-fd=0 --pinentry-mode=loopback --edit-key "$KEY_ID"
-    RETURN=0
 }
 
 parse_usage ()
@@ -385,15 +383,63 @@ set_batch_vars ()
     SUBKEY_LENGTH=
     SUBKEY_CURVE=
     SUBKEY_USAGE=
+    SUBKEY_IS_ADDITIONAL=
     EXPIRE_DATE=
     PASSPHRASE=
+}
+
+enable_next_subkey ()
+{
+    KEY_TEST=
+    SUBKEY_TYPE=
+    SUBKEY_IS_ADDITIONAL=
+    while read -r KEYWORD || test "${KEYWORD:-}"
+    do
+        test "${SUBKEY_IS_ADDITIONAL:-}" ||
+        case "${KEYWORD:-}" in
+            Subkey-Type:* | Subkey-Curve:* | Subkey-Length:* | Subkey-Usage:*)
+                KEYWORD="#$KEYWORD"
+            ;;
+            \##Subkey-Type:*)
+                test "${SUBKEY_TYPE:-}" && SUBKEY_IS_ADDITIONAL=yes || {
+                    KEYWORD="${KEYWORD#??}"
+                    SUBKEY_TYPE=1
+                }
+            ;;
+            \##Subkey-Curve:* | \##Subkey-Length:* | \##Subkey-Usage:*)
+                KEYWORD="${KEYWORD#??}"
+            ;;
+        esac
+        KEY_TEST="${KEY_TEST:+"$KEY_TEST$LF"}$KEYWORD"
+    done <<BATCH
+$KEY
+BATCH
+    KEY="$KEY_TEST"
+}
+
+check_key ()
+{
+    SAVE_KEY="$KEY"
+    while :
+    do
+        gpg_generate_key --dry-run || return
+        CREATED_KEY_ID=
+        case "$KEY" in
+            *$LF##*)
+                enable_next_subkey
+            ;;
+            *)
+                KEY="$SAVE_KEY"
+                return
+        esac
+    done
 }
 
 run_batch ()
 {
     case "${KEY:-}" in
         ?*)
-            gpg_generate_key --dry-run &&
+            check_key &&
             gpg_generate_key
         ;;
     esac &&
@@ -401,19 +447,18 @@ run_batch ()
         ?*)
             gpg_generate_subkey
         ;;
-    esac
+    esac || RETURN=$?
     set_batch_vars
 }
 
 run_batch_file ()
 {
-    RETURN=1
     set_batch_vars
     while read -r KEYWORD || test "${KEYWORD:-}"
     do
         case "${KEYWORD:-}" in
-            ""|[#\;]*)
-                continue
+            \#*)
+                KEYWORD=
             ;;
             %commit)
                 run_batch
@@ -432,29 +477,18 @@ run_batch_file ()
             Subkey-Type:*)
                 test "${SUBKEY_TYPE:-}" && {
                     SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
-                    continue
+                    KEYWORD="##$KEYWORD"
+                    SUBKEY_IS_ADDITIONAL=yes
                 } || SUBKEY_TYPE=1
             ;;
-            Subkey-Length:*)
-                test "${SUBKEY_LENGTH:-}" && {
+            Subkey-Curve:* | Subkey-Length:* | Subkey-Usage:*)
+                test "${SUBKEY_IS_ADDITIONAL:-}" && {
                     SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
-                    continue
-                } || SUBKEY_LENGTH=1
-            ;;
-            Subkey-Curve:*)
-                test "${SUBKEY_CURVE:-}" && {
-                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
-                    continue
-                } || SUBKEY_CURVE=1
-            ;;
-            Subkey-Usage:*)
-                test "${SUBKEY_USAGE:-}" && {
-                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
-                    continue
-                } || SUBKEY_USAGE=1
+                    KEYWORD="##$KEYWORD"
+                }
             ;;
         esac
-        KEY="${KEY:+"$KEY$LF"}$KEYWORD"
+        KEY="${KEY:+"$KEY$LF"}${KEYWORD:-}"
     done < "$1"
     test "${KEY:-"${SUBKEY:-}"}" || return "$RETURN"
     run_batch
@@ -473,7 +507,7 @@ main ()
     do
         run_batch_file "$BATCH"
     done
-    return "$RETURN"
+    return "${RETURN:-0}"
 }
 
 main "$@"
