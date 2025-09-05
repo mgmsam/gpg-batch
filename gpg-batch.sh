@@ -446,7 +446,6 @@ run_batch_file ()
     done < "$1"
     test "${KEY:-"${SUBKEY:-}"}" || return 0
     run_batch
-    test -z "${CREATED_KEY_ID:-}" || say "key created: $CREATED_KEY_ID"
 }
 
 main ()
@@ -461,6 +460,7 @@ main ()
     do
         run_batch_file "$BATCH"
     done
+    test -z "${CREATED_KEY_ID:-}" || say 0 "key created: $CREATED_KEY_ID"
     return "${RETURN:-0}"
 }
 
