@@ -118,6 +118,7 @@ mktempdir ()
 {
     TMPDIR="${TMPDIR:-/tmp}"
     TRYCOUNT=3
+    umask 077
     while :
     do
         TMPTRG="$TMPDIR/tmp.$(2>/dev/null date +%s)"
