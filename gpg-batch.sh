@@ -249,9 +249,6 @@ BATCH
 build_batch ()
 {
     case "${SUBKEY_TYPE:-}" in
-        "")
-            return 1
-        ;;
         1 | [rR][sS][aA])
             case "${SUBKEY_USAGE:-}" in
                 "" | "auth encrypt sign")
@@ -276,9 +273,10 @@ build_batch ()
                     BATCH=4
                 ;;
             esac
+            BATCH="$BATCH$LF${SUBKEY_LENGTH:-}"
         ;;
         16 | ELG | ELG-E)
-            BATCH=5
+            BATCH="5$LF${SUBKEY_LENGTH:-}"
         ;;
         17 | [dD][sS][aA])
             case "${SUBKEY_USAGE:-}" in
@@ -292,16 +290,15 @@ build_batch ()
                     BATCH=3
                 ;;
             esac
+            BATCH="$BATCH$LF${SUBKEY_LENGTH:-}"
         ;;
         18 | [eE][cC][cC] | [eE][cC][dD][hH])
             case "${SUBKEY_CURVE:-}" in
                 0)
-                    BATCH="12${LF}1"
-                ;;
-                [1-9]*)
-                    BATCH="12${LF}$SUBKEY_CURVE"
+                    SUBKEY_CURVE=1
                 ;;
             esac
+            BATCH="12$LF$SUBKEY_CURVE"
         ;;
         19 | 22 | [eE][cCdD][dD][sS][aA])
             case "${SUBKEY_USAGE:-}" in
@@ -315,10 +312,10 @@ build_batch ()
                     BATCH=10
                 ;;
             esac
-            BATCH="$BATCH${LF}$SUBKEY_CURVE"
+            BATCH="$BATCH$LF$SUBKEY_CURVE"
         ;;
     esac
-    BATCH="addkey$LF$BATCH$LF${SUBKEY_LENGTH:-${SUBKEY_CURVE:-}}$LF$EXPIRE_DATE${LF}y${LF}save"
+    BATCH="addkey$LF$BATCH$LF$EXPIRE_DATE${LF}y${LF}save"
 }
 
 gpg_generate_subkey ()
