@@ -126,9 +126,11 @@ gpg_generate_key ()
     BATCH="$KEY"
     if KEY_ID="$(run_gpg --full-gen-key "$@")"
     then
-        KEY_ID="${KEY_ID##*"$LF"}"
-        KEY_ID="${KEY_ID##*[[:blank:]]}"
-        CREATED_KEY_ID="${CREATED_KEY_ID:+"$CREATED_KEY_ID "}$KEY_ID"
+        test "${DRY_RUN:-}" || {
+            KEY_ID="${KEY_ID##*"$LF"}"
+            KEY_ID="${KEY_ID##*[[:blank:]]}"
+            CREATED_KEY_ID="${CREATED_KEY_ID:+"$CREATED_KEY_ID "}$KEY_ID"
+        }
     else
         return $?
     fi
@@ -376,13 +378,14 @@ check_key ()
     SAVE_KEY="$KEY"
     while :
     do
+        DRY_RUN=yes
         gpg_generate_key --dry-run || return
-        CREATED_KEY_ID=
         case "$KEY" in
             *$LF##*)
                 enable_next_subkey
             ;;
             *)
+                DRY_RUN=
                 KEY="$SAVE_KEY"
                 return
         esac
