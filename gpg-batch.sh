@@ -393,24 +393,24 @@ enable_next_subkey ()
     KEY_TEST=
     SUBKEY_TYPE=
     SUBKEY_IS_ADDITIONAL=
-    while read -r KEYWORD || test "${KEYWORD:-}"
+    while read -r SUBKEYWORD || test "${SUBKEYWORD:-}"
     do
         test "${SUBKEY_IS_ADDITIONAL:-}" ||
-        case "${KEYWORD:-}" in
+        case "${SUBKEYWORD:-}" in
             Subkey-Type:* | Subkey-Curve:* | Subkey-Length:* | Subkey-Usage:*)
-                KEYWORD="#$KEYWORD"
+                SUBKEYWORD="#$SUBKEYWORD"
             ;;
             \##Subkey-Type:*)
                 test "${SUBKEY_TYPE:-}" && SUBKEY_IS_ADDITIONAL=yes || {
-                    KEYWORD="${KEYWORD#??}"
+                    SUBKEYWORD="${SUBKEYWORD#??}"
                     SUBKEY_TYPE=1
                 }
             ;;
             \##Subkey-Curve:* | \##Subkey-Length:* | \##Subkey-Usage:*)
-                KEYWORD="${KEYWORD#??}"
+                SUBKEYWORD="${SUBKEYWORD#??}"
             ;;
         esac
-        KEY_TEST="${KEY_TEST:+"$KEY_TEST$LF"}$KEYWORD"
+        KEY_TEST="${KEY_TEST:+"$KEY_TEST$LF"}$SUBKEYWORD"
     done <<BATCH
 $KEY
 BATCH
