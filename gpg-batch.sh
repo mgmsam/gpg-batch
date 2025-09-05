@@ -145,7 +145,7 @@ BATCH
 
 gpg_generate_key ()
 {
-    BATCH="$KEY"
+    BATCH="${CANVAS:-}$KEY"
     if KEY_ID="$(run_gpg --full-gen-key "$@")"
     then
         test "${DRY_RUN:-}" || {
@@ -350,19 +350,6 @@ gpg_generate_subkey ()
     done
 }
 
-set_batch_vars ()
-{
-    KEY=
-    SUBKEY=
-    SUBKEY_TYPE=
-    SUBKEY_LENGTH=
-    SUBKEY_CURVE=
-    SUBKEY_USAGE=
-    SUBKEY_IS_ADDITIONAL=
-    EXPIRE_DATE=
-    PASSPHRASE=
-}
-
 enable_next_subkey ()
 {
     KEY_TEST=
@@ -392,6 +379,16 @@ BATCH
     KEY="$KEY_TEST"
 }
 
+extend_canvas ()
+{
+    while read -r LINE || test "${LINE:-}"
+    do
+        CANVAS="${CANVAS:-}$LF"
+    done <<CANVAS
+$KEY
+CANVAS
+}
+
 check_key ()
 {
     ORIGINAL_KEY="$KEY"
@@ -400,7 +397,11 @@ check_key ()
     while :
     do
         DRY_RUN=yes
-        gpg_generate_key --dry-run || return
+        gpg_generate_key --dry-run || {
+            GPG_EXIT=$?
+            extend_canvas
+            return "$GPG_EXIT"
+        }
         case "$KEY" in
             *$LF##*)
                 enable_next_subkey
@@ -409,6 +410,7 @@ check_key ()
                 DRY_RUN=
                 KEY="$ORIGINAL_KEY"
                 GNUPGHOME="${ORIGINAL_GNUPGHOME:-}"
+                extend_canvas
                 return
         esac
     done
@@ -430,6 +432,19 @@ run_batch ()
     set_batch_vars
 }
 
+set_batch_vars ()
+{
+    KEY=
+    SUBKEY=
+    SUBKEY_TYPE=
+    SUBKEY_LENGTH=
+    SUBKEY_CURVE=
+    SUBKEY_USAGE=
+    SUBKEY_IS_ADDITIONAL=
+    EXPIRE_DATE=
+    PASSPHRASE=
+}
+
 run_batch_file ()
 {
     set_batch_vars
@@ -441,10 +456,11 @@ run_batch_file ()
             ;;
             %commit)
                 run_batch
-                continue
+                KEYWORD=
             ;;
             Key-Type:*)
                 test -z "${KEY_TYPE:-}" || run_batch
+                KEY_TYPE=1
             ;;
             Expire-Date:*)
                 EXPIRE_DATE="${KEYWORD##*[[:blank:]]}"
