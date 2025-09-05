@@ -345,7 +345,7 @@ gpg_generate_subkey ()
     do
         get_subkey
         build_batch
-        gpg_addkey || RETURN=$?
+        gpg_addkey || GPG_EXIT=$?
     done
 }
 
@@ -425,7 +425,7 @@ run_batch ()
         ?*)
             gpg_generate_subkey
         ;;
-    esac || RETURN=$?
+    esac || GPG_EXIT=$?
     set_batch_vars
 }
 
@@ -487,7 +487,7 @@ main ()
     done
     test -z "${CREATED_KEY_ID:-}" || say 0 "key created: $CREATED_KEY_ID"
     STATUS="$(2>&1 rm -rvf -- "$TMP_GNUPGHOME")" || die "[TMP_GNUPGHOME] $STATUS"
-    return "${RETURN:-0}"
+    return "${GPG_EXIT:-0}"
 }
 
 main "$@"
