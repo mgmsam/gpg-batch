@@ -447,6 +447,7 @@ set_batch_vars ()
 
 run_batch_file ()
 {
+    CANVAS=
     set_batch_vars
     while read -r KEYWORD || test "${KEYWORD:-}"
     do
