@@ -420,7 +420,7 @@ check_key ()
 run_batch ()
 {
     case "${KEY:-}" in
-        ?*)
+        *[![:space:]]*)
             check_key &&
             gpg_generate_key
         ;;
