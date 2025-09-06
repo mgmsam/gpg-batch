@@ -231,35 +231,28 @@ get_subkey ()
     while read -r SUBKEYWORD || test "${SUBKEYWORD:-}"
     do
         case "$SUBKEYWORD" in
+            Expire-Date:*)
+                EXPIRE_DATE="${SUBKEYWORD#Expire-Date:}"
+                EXPIRE_DATE="${EXPIRE_DATE#"${EXPIRE_DATE%%[![:blank:]]*}"}"
+            ;;
             Subkey-Type:*)
-                test -z "${SUBKEY_TYPE:-}" || return 0
+                test -z "${SUBKEY_TYPE:-}" || break
                 SUBKEY_TYPE="${SUBKEYWORD#Subkey-Type:}"
                 SUBKEY_TYPE="${SUBKEY_TYPE#"${SUBKEY_TYPE%%[![:blank:]]*}"}"
-                ;;
+            ;;
             Subkey-Length:*)
-                case "${SUBKEY_TYPE:-}" in
-                    [eE][cC][cC]|[eE][cC][dD][hH]|[eE][cCdD][dD][sS][aA])
-                        return
-                esac
-                test -z "${SUBKEY_LENGTH:-}" || return 0
                 SUBKEY_LENGTH="${SUBKEYWORD#Subkey-Length:}"
                 SUBKEY_LENGTH="${SUBKEY_LENGTH#"${SUBKEY_LENGTH%%[![:blank:]]*}"}"
-                ;;
+            ;;
             Subkey-Curve:*)
-                case "${SUBKEY_TYPE:-}" in
-                    [dDrR][sS][aA]|[eE][lL][gG])
-                        return
-                esac
-                test -z "${SUBKEY_CURVE:-}" || return 0
                 SUBKEY_CURVE="${SUBKEYWORD#Subkey-Curve:}"
                 SUBKEY_CURVE="${SUBKEY_CURVE#"${SUBKEY_CURVE%%[![:blank:]]*}"}"
                 SUBKEY_CURVE="$(parse_curve)"
-                ;;
+            ;;
             Subkey-Usage:*)
-                test -z "${SUBKEY_USAGE:-}" || return 0
                 SUBKEY_USAGE="${SUBKEYWORD#Subkey-Usage:}"
                 SUBKEY_USAGE="$(parse_usage)"
-                ;;
+            ;;
         esac
         SUBKEY="${SUBKEY#"$SUBKEYWORD"}"
         SUBKEY="${SUBKEY#"$LF"}"
@@ -315,7 +308,7 @@ build_batch ()
             BATCH="$BATCH$LF${SUBKEY_LENGTH:-}"
         ;;
         18 | [eE][cC][cC] | [eE][cC][dD][hH])
-            case "${SUBKEY_CURVE:-}" in
+            case "$SUBKEY_CURVE" in
                 0)
                     SUBKEY_CURVE=1
                 ;;
@@ -337,7 +330,7 @@ build_batch ()
             BATCH="$BATCH$LF$SUBKEY_CURVE"
         ;;
     esac
-    BATCH="addkey$LF$BATCH$LF$EXPIRE_DATE${LF}y${LF}save"
+    BATCH="addkey$LF$BATCH$LF${EXPIRE_DATE:-}${LF}y${LF}save"
 }
 
 gpg_generate_subkey ()
@@ -359,7 +352,7 @@ enable_next_subkey ()
     do
         test "${SUBKEY_IS_ADDITIONAL:-}" ||
         case "${SUBKEYWORD:-}" in
-            Subkey-Type:* | Subkey-Curve:* | Subkey-Length:* | Subkey-Usage:*)
+            Expire-Date:* | Subkey-Type:* | Subkey-Curve:* | Subkey-Length:* | Subkey-Usage:*)
                 SUBKEYWORD="#$SUBKEYWORD"
             ;;
             \##Subkey-Type:*)
@@ -368,7 +361,7 @@ enable_next_subkey ()
                     SUBKEY_TYPE=1
                 }
             ;;
-            \##Subkey-Curve:* | \##Subkey-Length:* | \##Subkey-Usage:*)
+            \##Expire-Date:* | \##Subkey-Curve:* | \##Subkey-Length:* | \##Subkey-Usage:*)
                 SUBKEYWORD="${SUBKEYWORD#??}"
             ;;
         esac
@@ -400,6 +393,7 @@ check_key ()
         DRY_RUN=yes
         gpg_generate_key --dry-run || {
             GPG_EXIT=$?
+            GNUPGHOME="${ORIGINAL_GNUPGHOME:-}"
             extend_canvas
             return "$GPG_EXIT"
         }
@@ -417,10 +411,50 @@ check_key ()
     done
 }
 
+include_subkey ()
+{
+    NEW_KEY=
+
+    test "${EXPIRE_DATE_IS_ADDITIONAL:+"${SUBKEY_TYPE:-}"}" && {
+        while read -r LINE || test "${LINE:-}"
+        do
+            case "${LINE:-}" in
+                \#[!#]*)
+                    NEW_KEY="${NEW_KEY:+"$NEW_KEY$LF"}#$LINE"
+                ;;
+                *)
+                    NEW_KEY="${NEW_KEY:+"$NEW_KEY$LF"}${LINE:-}"
+                ;;
+            esac
+        done <<KEY
+$KEY
+KEY
+    } || {
+        SUBKEY_FIRST=
+        while read -r LINE || test "${LINE:-}"
+        do
+            case "${LINE:-}" in
+                \#[!#]*)
+                    NEW_KEY="${NEW_KEY:+"$NEW_KEY$LF"}${LINE#?}"
+                ;;
+                *)
+                    NEW_KEY="${NEW_KEY:+"$NEW_KEY$LF"}${LINE:-}"
+                ;;
+            esac
+        done <<KEY
+$KEY
+KEY
+    }
+
+    KEY="$NEW_KEY"
+    SUBKEY="${SUBKEY_FIRST:-}${SUBKEY:+"$LF$SUBKEY"}"
+}
+
 run_batch ()
 {
     case "${KEY:-}" in
         *[![:space:]]*)
+            include_subkey
             check_key &&
             gpg_generate_key
         ;;
@@ -439,13 +473,16 @@ run_batch ()
 set_batch_vars ()
 {
     KEY=
+    KEY_TYPE=
     SUBKEY=
     SUBKEY_TYPE=
     SUBKEY_LENGTH=
     SUBKEY_CURVE=
     SUBKEY_USAGE=
+    SUBKEY_FIRST=
     SUBKEY_IS_ADDITIONAL=
     EXPIRE_DATE=
+    EXPIRE_DATE_IS_ADDITIONAL=
     PASSPHRASE=
 }
 
@@ -464,11 +501,19 @@ run_batch_file ()
                 KEYWORD=
             ;;
             Key-Type:*)
-                test -z "${KEY_TYPE:-}" || run_batch
-                KEY_TYPE=1
+                test "${KEY_TYPE:-}" && run_batch || KEY_TYPE=1
             ;;
             Expire-Date:*)
-                EXPIRE_DATE="${KEYWORD##*[[:blank:]]}"
+                test "${EXPIRE_DATE:-}" && {
+                    EXPIRE_DATE_IS_ADDITIONAL=yes
+                    test "${SUBKEY_IS_ADDITIONAL:-}" && {
+                        SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
+                        KEYWORD="##$KEYWORD"
+                    } || {
+                        SUBKEY_FIRST="${SUBKEY_FIRST:+"$SUBKEY_FIRST$LF"}$KEYWORD"
+                        KEYWORD="#$KEYWORD"
+                    }
+                } || EXPIRE_DATE="${KEYWORD##*[[:blank:]]}"
             ;;
             Passphrase:*)
                 PASSPHRASE="${KEYWORD#Passphrase:}"
@@ -477,14 +522,21 @@ run_batch_file ()
             Subkey-Type:*)
                 test "${SUBKEY_TYPE:-}" && {
                     SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
-                    KEYWORD="##$KEYWORD"
                     SUBKEY_IS_ADDITIONAL=yes
-                } || SUBKEY_TYPE=1
+                    KEYWORD="##$KEYWORD"
+                } || {
+                    SUBKEY_FIRST="${SUBKEY_FIRST:+"$SUBKEY_FIRST$LF"}$KEYWORD"
+                    SUBKEY_TYPE=1
+                    KEYWORD="#$KEYWORD"
+                }
             ;;
             Subkey-Curve:* | Subkey-Length:* | Subkey-Usage:*)
                 test "${SUBKEY_IS_ADDITIONAL:-}" && {
                     SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
                     KEYWORD="##$KEYWORD"
+                } || {
+                    SUBKEY_FIRST="${SUBKEY_FIRST:+"$SUBKEY_FIRST$LF"}$KEYWORD"
+                    KEYWORD="#$KEYWORD"
                 }
             ;;
         esac
