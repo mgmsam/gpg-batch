@@ -18,6 +18,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+is_term ()
+{
+    test -t "${1:-1}" && IS_TERM=0 || IS_TERM=1
+    return "$IS_TERM"
+}
+
 if test "${KSH_VERSION:-}"
 then
     PUTS=print
@@ -150,7 +156,6 @@ gpg_update_trustdb ()
 
 gpg_generate_key ()
 {
-    BATCH="${CANVAS:-}$KEY"
     STATUS="$(run_gpg "$@" --full-gen-key --status-fd=1)" && {
         test "${DRY_RUN:-}" || {
             gpg_update_trustdb
@@ -163,7 +168,12 @@ gpg_generate_key ()
 
 gpg_addkey ()
 {
-    run_gpg --command-fd=0 --pinentry-mode=loopback --edit-key "$KEY_ID"
+    if test "${NO_PROTECTION:-"${PASSPHRASE:-}"}"
+    then
+        run_gpg --command-fd=0 --pinentry-mode=loopback --edit-key "$KEY_ID"
+    else
+        run_gpg --command-fd=0 --edit-key "$KEY_ID"
+    fi
 }
 
 parse_usage ()
@@ -333,7 +343,10 @@ build_batch ()
             BATCH="$BATCH$LF$SUBKEY_CURVE"
         ;;
     esac
-    BATCH="addkey$LF$BATCH$LF${EXPIRE_DATE:-}${LF}y${LF}save"
+
+    test "${PASSPHRASE:-}" &&
+    BATCH="addkey$LF$BATCH$LF${EXPIRE_DATE:-}$LF$PASSPHRASE${LF}save" ||
+    BATCH="addkey$LF$BATCH$LF${EXPIRE_DATE:-}$LF${NO_PROTECTION:+y$LF}save"
 }
 
 gpg_generate_subkey ()
@@ -343,77 +356,6 @@ gpg_generate_subkey ()
         get_subkey
         build_batch
         gpg_addkey || GPG_EXIT=$?
-    done
-}
-
-enable_next_subkey ()
-{
-    KEY_TEST=
-    SUBKEY_TYPE=
-    SUBKEY_IS_ADDITIONAL=
-    while read -r SUBKEYWORD || test "${SUBKEYWORD:-}"
-    do
-        test "${SUBKEY_IS_ADDITIONAL:-}" ||
-        case "${SUBKEYWORD:-}" in
-            Expire-Date:* | Subkey-Type:* | Subkey-Curve:* | Subkey-Length:* | Subkey-Usage:*)
-                SUBKEYWORD="#$SUBKEYWORD"
-            ;;
-            \##Subkey-Type:*)
-                test "${SUBKEY_TYPE:-}" && SUBKEY_IS_ADDITIONAL=yes || {
-                    SUBKEYWORD="${SUBKEYWORD#??}"
-                    SUBKEY_TYPE=1
-                }
-            ;;
-            \##Expire-Date:* | \##Subkey-Curve:* | \##Subkey-Length:* | \##Subkey-Usage:*)
-                SUBKEYWORD="${SUBKEYWORD#??}"
-            ;;
-        esac
-        KEY_TEST="${KEY_TEST:+"$KEY_TEST$LF"}$SUBKEYWORD"
-    done <<BATCH
-$KEY
-BATCH
-    KEY="$KEY_TEST"
-}
-
-extend_canvas ()
-{
-    while read -r LINE || test "${LINE:-}"
-    do
-        CANVAS="${CANVAS:-}$LF"
-    done <<CANVAS
-$KEY
-CANVAS
-}
-
-check_key ()
-{
-    ORIGINAL_KEY="$KEY"
-    KEY="$KEY$LF%no-protection"
-    ORIGINAL_GNUPGHOME="${GNUPGHOME:-}"
-    export   GNUPGHOME="$TMP_GNUPGHOME"
-    say -n "checking the GPG key parameters:"
-    while :
-    do
-        DRY_RUN=yes
-        STATUS="$(2>&1 gpg_generate_key --dry-run)" || {
-            GPG_EXIT=$?
-            GNUPGHOME="${ORIGINAL_GNUPGHOME:-}"
-            echo " failed$LF$STATUS"
-            extend_canvas
-            return "$GPG_EXIT"
-        }
-        case "$KEY" in
-            *$LF##*)
-                enable_next_subkey
-            ;;
-            *)
-                DRY_RUN=
-                KEY="$ORIGINAL_KEY"
-                GNUPGHOME="${ORIGINAL_GNUPGHOME:-}"
-                echo " passed"
-                extend_canvas
-                return
-        esac
     done
 }
 
@@ -456,12 +398,109 @@ KEY
     SUBKEY="${SUBKEY_FIRST:-}${SUBKEY:+"$LF$SUBKEY"}"
 }
 
+enable_next_subkey ()
+{
+    UPDATED_KEY=
+    SUBKEY_TYPE=
+    SUBKEY_IS_ADDITIONAL=
+    while read -r SUBKEYWORD || test "${SUBKEYWORD:-}"
+    do
+        test "${SUBKEY_IS_ADDITIONAL:-}" ||
+        case "${SUBKEYWORD:-}" in
+            Expire-Date:* | Subkey-Type:* | Subkey-Curve:* | Subkey-Length:* | Subkey-Usage:*)
+                SUBKEYWORD="#$SUBKEYWORD"
+            ;;
+            \##Subkey-Type:*)
+                test "${SUBKEY_TYPE:-}" && SUBKEY_IS_ADDITIONAL=yes || {
+                    SUBKEYWORD="${SUBKEYWORD#??}"
+                    SUBKEY_TYPE=1
+                }
+            ;;
+            \##Expire-Date:* | \##Subkey-Curve:* | \##Subkey-Length:* | \##Subkey-Usage:*)
+                SUBKEYWORD="${SUBKEYWORD#??}"
+            ;;
+        esac
+        UPDATED_KEY="${UPDATED_KEY:+"$UPDATED_KEY$LF"}$SUBKEYWORD"
+    done <<BATCH
+$TESTED_KEY
+BATCH
+    TESTED_KEY="$UPDATED_KEY"
+}
+
+extend_canvas ()
+{
+    while read -r LINE || test "${LINE:-}"
+    do
+        CANVAS="${CANVAS:-}$LF"
+    done <<CANVAS
+$KEY
+CANVAS
+}
+
+check_key ()
+{
+    ORIGINAL_GNUPGHOME="${GNUPGHOME:-}"
+    export   GNUPGHOME="$TMP_GNUPGHOME"
+    say -n "checking the GPG key parameters:"
+    TESTED_KEY="$KEY$LF%no-protection"
+    while :
+    do
+        DRY_RUN=yes
+        BATCH="${CANVAS:-}$TESTED_KEY"
+        STATUS="$(2>&1 gpg_generate_key --dry-run)" || {
+            GPG_EXIT=$?
+            GNUPGHOME="${ORIGINAL_GNUPGHOME:-}"
+            extend_canvas
+            echo " failed$LF$STATUS"
+            return "$GPG_EXIT"
+        }
+        case "$TESTED_KEY" in
+            *$LF##*)
+                enable_next_subkey
+            ;;
+            *)
+                DRY_RUN=
+                BATCH="${CANVAS:-}$KEY"
+                GNUPGHOME="${ORIGINAL_GNUPGHOME:-}"
+                extend_canvas
+                echo " passed"
+                return
+            ;;
+        esac
+    done
+}
+
+add_passphrase ()
+{
+    case "${STDIN_PASSPHRASE:-}" in
+        "")
+            test -z "${NO_PROTECTION:-}" || {
+                BATCH="$BATCH$LF%no-protection"
+                PASSPHRASE=
+            }
+        ;;
+        "$LF")
+            BATCH="$BATCH$LF%no-protection"
+            PASSPHRASE=
+            NO_PROTECTION=yes
+        ;;
+        *)
+            test "${PASSPHRASE:-}" || {
+                PASSPHRASE="$STDIN_PASSPHRASE"
+                BATCH="$BATCH${LF}Passphrase: ${PASSPHRASE:-}"
+            }
+            NO_PROTECTION=
+        ;;
+    esac
+}
+
 run_batch ()
 {
     case "${KEY:-}" in
         *[![:space:]]*)
             include_subkey
             check_key &&
+            add_passphrase &&
             gpg_generate_key
         ;;
     esac &&
@@ -489,6 +528,7 @@ set_batch_vars ()
     SUBKEY_IS_ADDITIONAL=
     EXPIRE_DATE=
     EXPIRE_DATE_IS_ADDITIONAL=
+    NO_PROTECTION=
     PASSPHRASE=
 }
 
@@ -504,6 +544,10 @@ run_batch_file ()
             ;;
             %commit)
                 run_batch
+                KEYWORD=
+            ;;
+            %no-protection)
+                NO_PROTECTION=yes
                 KEYWORD=
             ;;
             Key-Type:*)
@@ -524,6 +568,22 @@ run_batch_file ()
             Passphrase:*)
                 PASSPHRASE="${KEYWORD#Passphrase:}"
                 PASSPHRASE="${PASSPHRASE#"${PASSPHRASE%%[![:blank:]]*}"}"
+                if test "${PASSPHRASE:-}"
+                then
+                    case "${STDIN_PASSPHRASE:-}" in
+                        "")
+                            KEYWORD="Passphrase: $PASSPHRASE"
+                        ;;
+                        "$LF")
+                            KEYWORD=
+                            PASSPHRASE=
+                        ;;
+                        *)
+                            KEYWORD="Passphrase: $STDIN_PASSPHRASE"
+                            PASSPHRASE="$STDIN_PASSPHRASE"
+                        ;;
+                    esac
+                fi
             ;;
             Subkey-Type:*)
                 test "${SUBKEY_TYPE:-}" && {
@@ -557,8 +617,6 @@ main ()
     PKG="${0##*/}"
     GPG="$(which gpg)" || die "gpg: command not found"
     TMP_GNUPGHOME="${TMP_GNUPGHOME:-"$(mktempdir)"}" || die "$TMP_GNUPGHOME"
-    LF='
-'
 
     for BATCH_FILE in "$@"
     do
@@ -569,5 +627,14 @@ main ()
     STATUS="$(2>&1 rm -rvf -- "$TMP_GNUPGHOME")" || die "[TMP_GNUPGHOME] $STATUS"
     return "${GPG_EXIT:-0}"
 }
+
+LF='
+'
+is_term 0 ||
+while IFS="$LF" read -r STDIN_PASSPHRASE || test "${STDIN_PASSPHRASE:-}"
+do
+    STDIN_PASSPHRASE="${STDIN_PASSPHRASE:-"$LF"}"
+    break
+done
 
 main "$@"
