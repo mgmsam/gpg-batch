@@ -18,13 +18,50 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+is_diff ()
+{
+    case "${1:-}" in
+        "${2:-}")
+            return 1
+        ;;
+    esac
+}
+
+is_equal ()
+{
+    case "${1:-}" in
+        "${2:-}")
+            return 0
+        ;;
+    esac
+    return 1
+}
+
+is_empty ()
+{
+    case "${1:-}" in
+        ?*)
+            return 1
+        ;;
+    esac
+}
+
+is_not_empty ()
+{
+    case "${1:-}" in
+        "")
+            return 1
+        ;;
+    esac
+}
+
 is_term ()
 {
     test -t "${1:-1}" && IS_TERM=0 || IS_TERM=1
     return "$IS_TERM"
 }
 
-if test "${KSH_VERSION:-}"
+if is_not_empty "${KSH_VERSION:-}"
 then
     PUTS=print
     puts ()
@@ -55,11 +92,11 @@ say ()
 {
     RETURN=$?
     PUTS_OPTIONS=
-    while test $# -gt 0
+    while is_diff $# 0
     do
         case "${1:-}" in
             -n)
-                test "$PUTS" = printf &&
+                is_equal "$PUTS" printf &&
                 PUTS_OPTIONS=%s ||
                 PUTS_OPTIONS=-n
                 ;;
@@ -71,11 +108,10 @@ say ()
         esac
         shift
     done
-    case "$@" in
-        ?*)
-            puts "$PKG:${1:+" $@"}"
-            PUTS_OPTIONS=
-    esac
+    is_empty "$@" || {
+        puts "$PKG:${1:+" $@"}"
+        PUTS_OPTIONS=
+    }
 }
 
 die ()
@@ -106,7 +142,7 @@ which ()
             IFS=:
             for ELEMENT in $PATH
             do
-                test "${ELEMENT:-}" || ELEMENT=.
+                is_not_empty "${ELEMENT:-}" || ELEMENT=.
                 if  test -f "$ELEMENT/$1" &&
                     test -x "$ELEMENT/$1"
                 then
@@ -135,7 +171,7 @@ mktempdir ()
             }
         } || :
         TRYCOUNT="$((TRYCOUNT - 1))"
-        test "$TRYCOUNT" -gt 0 || {
+        is_diff "$TRYCOUNT" 0 || {
             echo "mktempdir: failed to create directory: -- '$TMPTRG'"
             return 1
         }
@@ -157,7 +193,7 @@ gpg_update_trustdb ()
 gpg_generate_key ()
 {
     STATUS="$(run_gpg "$@" --full-gen-key --status-fd=1)" && {
-        test "${DRY_RUN:-}" || {
+        is_not_empty "${DRY_RUN:-}" || {
             gpg_update_trustdb
             KEY_ID="${STATUS##*KEY_CREATED}"
             KEY_ID="${KEY_ID##*[[:blank:]]}"
@@ -168,11 +204,11 @@ gpg_generate_key ()
 
 gpg_addkey ()
 {
-    if test "${NO_PROTECTION:-"${PASSPHRASE:-}"}"
+    if is_empty "${NO_PROTECTION:-"${PASSPHRASE:-}"}"
     then
-        run_gpg --command-fd=0 --pinentry-mode=loopback --edit-key "$KEY_ID"
-    else
         run_gpg --command-fd=0 --edit-key "$KEY_ID"
+    else
+        run_gpg --command-fd=0 --pinentry-mode=loopback --edit-key "$KEY_ID"
     fi
 }
 
@@ -180,7 +216,7 @@ parse_usage ()
 {
     IFS="$IFS,"
     set -- $SUBKEY_USAGE
-    while test $# -gt 0
+    while is_diff $# 0
     do
         case "$1" in
             auth)
@@ -243,7 +279,7 @@ get_subkey ()
     SUBKEY_LENGTH=
     SUBKEY_CURVE=
     SUBKEY_USAGE=
-    while read -r SUBKEYWORD || test "${SUBKEYWORD:-}"
+    while read -r SUBKEYWORD || is_not_empty "${SUBKEYWORD:-}"
     do
         case "$SUBKEYWORD" in
             Expire-Date:*)
@@ -251,7 +287,7 @@ get_subkey ()
                 EXPIRE_DATE="${EXPIRE_DATE#"${EXPIRE_DATE%%[![:blank:]]*}"}"
             ;;
             Subkey-Type:*)
-                test -z "${SUBKEY_TYPE:-}" || break
+                is_empty "${SUBKEY_TYPE:-}" || break
                 SUBKEY_TYPE="${SUBKEYWORD#Subkey-Type:}"
                 SUBKEY_TYPE="${SUBKEY_TYPE#"${SUBKEY_TYPE%%[![:blank:]]*}"}"
             ;;
@@ -271,9 +307,9 @@ get_subkey ()
         esac
         SUBKEY="${SUBKEY#"$SUBKEYWORD"}"
         SUBKEY="${SUBKEY#"$LF"}"
-    done <<BATCH
+    done <<SUBKEY
 $SUBKEY
-BATCH
+SUBKEY
 }
 
 build_batch ()
@@ -355,14 +391,14 @@ build_batch ()
         ;;
     esac
 
-    test "${PASSPHRASE:-}" &&
+    is_not_empty "${PASSPHRASE:-}" &&
     BATCH="addkey$LF$BATCH$LF${EXPIRE_DATE:-}$LF$PASSPHRASE${LF}save" ||
     BATCH="addkey$LF$BATCH$LF${EXPIRE_DATE:-}$LF${NO_PROTECTION:+y$LF}save"
 }
 
 gpg_generate_subkey ()
 {
-    while test "${SUBKEY:-}"
+    while is_not_empty "${SUBKEY:-}"
     do
         get_subkey
         build_batch
@@ -372,17 +408,17 @@ gpg_generate_subkey ()
 
 include_subkey ()
 {
-    NEW_KEY=
+    UPDATED_KEY=
 
-    test "${EXPIRE_DATE_IS_ADDITIONAL:+"${SUBKEY_TYPE:-}"}" && {
-        while read -r LINE || test "${LINE:-}"
+    is_not_empty "${EXPIRE_DATE_IS_ADDITIONAL:+"${SUBKEY_TYPE:-}"}" && {
+        while read -r LINE || is_not_empty "${LINE:-}"
         do
             case "${LINE:-}" in
                 \#[!#]*)
-                    NEW_KEY="${NEW_KEY:+"$NEW_KEY$LF"}#$LINE"
+                    UPDATED_KEY="${UPDATED_KEY:+"$UPDATED_KEY$LF"}#$LINE"
                 ;;
                 *)
-                    NEW_KEY="${NEW_KEY:+"$NEW_KEY$LF"}${LINE:-}"
+                    UPDATED_KEY="${UPDATED_KEY:+"$UPDATED_KEY$LF"}${LINE:-}"
                 ;;
             esac
         done <<KEY
@@ -390,14 +426,14 @@ $KEY
 KEY
     } || {
         SUBKEY_FIRST=
-        while read -r LINE || test "${LINE:-}"
+        while read -r LINE || is_not_empty "${LINE:-}"
         do
             case "${LINE:-}" in
                 \#[!#]*)
-                    NEW_KEY="${NEW_KEY:+"$NEW_KEY$LF"}${LINE#?}"
+                    UPDATED_KEY="${UPDATED_KEY:+"$UPDATED_KEY$LF"}${LINE#?}"
                 ;;
                 *)
-                    NEW_KEY="${NEW_KEY:+"$NEW_KEY$LF"}${LINE:-}"
+                    UPDATED_KEY="${UPDATED_KEY:+"$UPDATED_KEY$LF"}${LINE:-}"
                 ;;
             esac
         done <<KEY
@@ -405,7 +441,7 @@ $KEY
 KEY
     }
 
-    KEY="$NEW_KEY"
+    KEY="$UPDATED_KEY"
     SUBKEY="${SUBKEY_FIRST:-}${SUBKEY:+"$LF$SUBKEY"}"
 }
 
@@ -414,15 +450,15 @@ enable_next_subkey ()
     UPDATED_KEY=
     SUBKEY_TYPE=
     SUBKEY_IS_ADDITIONAL=
-    while read -r SUBKEYWORD || test "${SUBKEYWORD:-}"
+    while read -r SUBKEYWORD || is_not_empty "${SUBKEYWORD:-}"
     do
-        test "${SUBKEY_IS_ADDITIONAL:-}" ||
+        is_not_empty "${SUBKEY_IS_ADDITIONAL:-}" ||
         case "${SUBKEYWORD:-}" in
             Expire-Date:* | Subkey-Type:* | Subkey-Curve:* | Subkey-Length:* | Subkey-Usage:*)
                 SUBKEYWORD="#$SUBKEYWORD"
             ;;
             \##Subkey-Type:*)
-                test "${SUBKEY_TYPE:-}" && SUBKEY_IS_ADDITIONAL=yes || {
+                is_not_empty "${SUBKEY_TYPE:-}" && SUBKEY_IS_ADDITIONAL=yes || {
                     SUBKEYWORD="${SUBKEYWORD#??}"
                     SUBKEY_TYPE=1
                 }
@@ -432,20 +468,20 @@ enable_next_subkey ()
             ;;
         esac
         UPDATED_KEY="${UPDATED_KEY:+"$UPDATED_KEY$LF"}$SUBKEYWORD"
-    done <<BATCH
+    done <<KEY
 $TESTED_KEY
-BATCH
+KEY
     TESTED_KEY="$UPDATED_KEY"
 }
 
 extend_canvas ()
 {
-    while read -r LINE || test "${LINE:-}"
+    while read -r LINE || is_not_empty "${LINE:-}"
     do
         CANVAS="${CANVAS:-}$LF"
-    done <<CANVAS
+    done <<KEY
 $KEY
-CANVAS
+KEY
 }
 
 check_key ()
@@ -485,21 +521,21 @@ add_passphrase ()
 {
     case "${STDIN_PASSPHRASE:-}" in
         "")
-            test -z "${NO_PROTECTION:-}" || {
+            is_empty "${NO_PROTECTION:-}" || {
                 BATCH="$BATCH$LF%no-protection"
                 PASSPHRASE=
             }
         ;;
         "$LF")
-            test -z "${KEY_TYPE:-}" || {
+            is_empty "${KEY_TYPE:-}" || {
                 BATCH="$BATCH$LF%no-protection"
                 PASSPHRASE=
                 NO_PROTECTION=yes
             }
         ;;
         *)
-            test "${PASSPHRASE:-}" || {
-                test -z "${KEY_TYPE:-}" || {
+            is_not_empty "${PASSPHRASE:-}" || {
+                is_empty "${KEY_TYPE:-}" || {
                     PASSPHRASE="$STDIN_PASSPHRASE"
                     BATCH="$BATCH${LF}Passphrase: ${PASSPHRASE:-}"
                 }
@@ -551,7 +587,7 @@ run_batch_file ()
 {
     CANVAS=
     set_batch_vars
-    while read -r KEYWORD || test "${KEYWORD:-}"
+    while read -r KEYWORD || is_not_empty "${KEYWORD:-}"
     do
         case "${KEYWORD:-}" in
             \#*)
@@ -566,25 +602,25 @@ run_batch_file ()
                 KEYWORD=
             ;;
             Key-Type:*)
-                test "${KEY_TYPE:-}" && run_batch || KEY_TYPE=1
+                is_empty "${KEY_TYPE:-}" && KEY_TYPE=1 || run_batch
             ;;
             Expire-Date:*)
-                test "${EXPIRE_DATE:-}" && {
+                is_empty "${EXPIRE_DATE:-}" &&
+                EXPIRE_DATE="${KEYWORD##*[[:blank:]]}" || {
                     EXPIRE_DATE_IS_ADDITIONAL=yes
-                    test "${SUBKEY_IS_ADDITIONAL:-}" && {
-                        SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
-                        KEYWORD="##$KEYWORD"
-                    } || {
+                    is_empty "${SUBKEY_IS_ADDITIONAL:-}" && {
                         SUBKEY_FIRST="${SUBKEY_FIRST:+"$SUBKEY_FIRST$LF"}$KEYWORD"
                         KEYWORD="#$KEYWORD"
+                    } || {
+                        SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
+                        KEYWORD="##$KEYWORD"
                     }
-                } || EXPIRE_DATE="${KEYWORD##*[[:blank:]]}"
+                }
             ;;
             Passphrase:*)
                 PASSPHRASE="${KEYWORD#Passphrase:}"
                 PASSPHRASE="${PASSPHRASE#"${PASSPHRASE%%[![:blank:]]*}"}"
-                if test "${PASSPHRASE:-}"
-                then
+                is_empty "${PASSPHRASE:-}" || {
                     case "${STDIN_PASSPHRASE:-}" in
                         "")
                             KEYWORD="Passphrase: $PASSPHRASE"
@@ -598,33 +634,32 @@ run_batch_file ()
                             PASSPHRASE="$STDIN_PASSPHRASE"
                         ;;
                     esac
-                fi
+                }
             ;;
             Subkey-Type:*)
-                test "${SUBKEY_TYPE:-}" && {
-                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
-                    SUBKEY_IS_ADDITIONAL=yes
-                    KEYWORD="##$KEYWORD"
-                } || {
+                is_empty "${SUBKEY_TYPE:-}" && {
                     SUBKEY_FIRST="${SUBKEY_FIRST:+"$SUBKEY_FIRST$LF"}$KEYWORD"
                     SUBKEY_TYPE=1
                     KEYWORD="#$KEYWORD"
+                } || {
+                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
+                    SUBKEY_IS_ADDITIONAL=yes
+                    KEYWORD="##$KEYWORD"
                 }
             ;;
             Subkey-Curve:* | Subkey-Length:* | Subkey-Usage:*)
-                test "${SUBKEY_IS_ADDITIONAL:-}" && {
-                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
-                    KEYWORD="##$KEYWORD"
-                } || {
+                is_empty "${SUBKEY_IS_ADDITIONAL:-}" && {
                     SUBKEY_FIRST="${SUBKEY_FIRST:+"$SUBKEY_FIRST$LF"}$KEYWORD"
                     KEYWORD="#$KEYWORD"
+                } || {
+                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
+                    KEYWORD="##$KEYWORD"
                 }
             ;;
         esac
         KEY="${KEY:+"$KEY$LF"}${KEYWORD:-}"
     done < "$1"
-    test "${KEY:-"${SUBKEY:-}"}" || return 0
-    run_batch
+    is_empty "${KEY:-"${SUBKEY:-}"}" && return || run_batch
 }
 
 main ()
@@ -638,7 +673,7 @@ main ()
         run_batch_file "$BATCH_FILE"
     done
     gpg_update_trustdb
-    test -z "${KEY_CREATED:-}" || say 0 "key created: $KEY_CREATED"
+    is_empty "${KEY_CREATED:-}" || say 0 "key created: $KEY_CREATED"
     STATUS="$(2>&1 rm -rvf -- "$TMP_GNUPGHOME")" || die "[TMP_GNUPGHOME] $STATUS"
     return "${GPG_EXIT:-0}"
 }
@@ -646,7 +681,7 @@ main ()
 LF='
 '
 is_term 0 ||
-while IFS="$LF" read -r STDIN_PASSPHRASE || test "${STDIN_PASSPHRASE:-}"
+while IFS="$LF" read -r STDIN_PASSPHRASE || is_not_empty "${STDIN_PASSPHRASE:-}"
 do
     STDIN_PASSPHRASE="${STDIN_PASSPHRASE:-"$LF"}"
     break
