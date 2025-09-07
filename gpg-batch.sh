@@ -138,7 +138,7 @@ mktempdir ()
 
 run_gpg ()
 {
-    "$GPG" $GPG_OPTIONS "$@" <<BATCH
+    "$GPG" --expert --batch "$@" <<BATCH
 $BATCH
 BATCH
 }
@@ -146,16 +146,14 @@ BATCH
 gpg_generate_key ()
 {
     BATCH="${CANVAS:-}$KEY"
-    if KEY_ID="$(run_gpg --full-gen-key "$@")"
-    then
+    STATUS="$(run_gpg "$@" --full-gen-key --status-fd=1)" && {
         test "${DRY_RUN:-}" || {
-            KEY_ID="${KEY_ID##*"$LF"}"
+            >/dev/null 2>&1 run_gpg --update-trustdb || :
+            KEY_ID="${STATUS##*KEY_CREATED}"
             KEY_ID="${KEY_ID##*[[:blank:]]}"
-            CREATED_KEY_ID="${CREATED_KEY_ID:+"$CREATED_KEY_ID "}$KEY_ID"
+            KEY_CREATED="${KEY_CREATED:+"$KEY_CREATED "}$KEY_ID"
         }
-    else
-        return
-    fi
+    }
 }
 
 gpg_addkey ()
@@ -388,12 +386,14 @@ check_key ()
     KEY="$KEY$LF%no-protection"
     ORIGINAL_GNUPGHOME="${GNUPGHOME:-}"
     export   GNUPGHOME="$TMP_GNUPGHOME"
+    say -n "checking the GPG key parameters:"
     while :
     do
         DRY_RUN=yes
-        gpg_generate_key --dry-run || {
+        STATUS="$(2>&1 gpg_generate_key --dry-run)" || {
             GPG_EXIT=$?
             GNUPGHOME="${ORIGINAL_GNUPGHOME:-}"
+            echo " failed$LF$STATUS"
             extend_canvas
             return "$GPG_EXIT"
         }
@@ -405,6 +405,7 @@ check_key ()
                 DRY_RUN=
                 KEY="$ORIGINAL_KEY"
                 GNUPGHOME="${ORIGINAL_GNUPGHOME:-}"
+                echo " passed"
                 extend_canvas
                 return
         esac
@@ -550,7 +551,6 @@ main ()
 {
     PKG="${0##*/}"
     GPG="$(which gpg)" || die "gpg: command not found"
-    GPG_OPTIONS="--batch --expert --verbose --status-fd=1 --no-auto-check-trustdb"
     TMP_GNUPGHOME="${TMP_GNUPGHOME:-"$(mktempdir)"}" || die "$TMP_GNUPGHOME"
     LF='
 '
@@ -559,7 +559,7 @@ main ()
     do
         run_batch_file "$BATCH_FILE"
     done
-    test -z "${CREATED_KEY_ID:-}" || say 0 "key created: $CREATED_KEY_ID"
+    test -z "${KEY_CREATED:-}" || say 0 "key created: $KEY_CREATED"
     STATUS="$(2>&1 rm -rvf -- "$TMP_GNUPGHOME")" || die "[TMP_GNUPGHOME] $STATUS"
     return "${GPG_EXIT:-0}"
 }
