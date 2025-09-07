@@ -143,12 +143,17 @@ $BATCH
 BATCH
 }
 
+gpg_update_trustdb ()
+{
+    >/dev/null 2>&1 run_gpg --update-trustdb || :
+}
+
 gpg_generate_key ()
 {
     BATCH="${CANVAS:-}$KEY"
     STATUS="$(run_gpg "$@" --full-gen-key --status-fd=1)" && {
         test "${DRY_RUN:-}" || {
-            >/dev/null 2>&1 run_gpg --update-trustdb || :
+            gpg_update_trustdb
             KEY_ID="${STATUS##*KEY_CREATED}"
             KEY_ID="${KEY_ID##*[[:blank:]]}"
             KEY_CREATED="${KEY_CREATED:+"$KEY_CREATED "}$KEY_ID"
@@ -559,6 +564,7 @@ main ()
     do
         run_batch_file "$BATCH_FILE"
     done
+    gpg_update_trustdb
     test -z "${KEY_CREATED:-}" || say 0 "key created: $KEY_CREATED"
     STATUS="$(2>&1 rm -rvf -- "$TMP_GNUPGHOME")" || die "[TMP_GNUPGHOME] $STATUS"
     return "${GPG_EXIT:-0}"
