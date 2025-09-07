@@ -187,6 +187,7 @@ parse_usage ()
                 AUTH=auth
                 ;;
             cert)
+                CERT=cert
                 ;;
             encrypt)
                 ENCRYPT=encrypt
@@ -196,7 +197,8 @@ parse_usage ()
         esac
         shift
     done
-    echo ${AUTH:-} ${ENCRYPT:-} ${SIGN:-}
+    set -- ${AUTH:-} ${CERT:-} ${ENCRYPT:-} ${SIGN:-}
+    echo "$@"
 }
 
 parse_curve ()
@@ -279,25 +281,28 @@ build_batch ()
     case "${SUBKEY_TYPE:-}" in
         1 | [rR][sS][aA])
             case "${SUBKEY_USAGE:-}" in
-                "" | "auth encrypt sign")
+                "" | "auth encrypt sign" | "auth cert encrypt sign")
                     BATCH="8${LF}A${LF}Q"
                 ;;
-                "auth sign")
+                "auth sign" | "auth cert sign")
                     BATCH="8${LF}E${LF}A${LF}Q"
                 ;;
-                "auth encrypt")
+                "auth encrypt" | "auth cert encrypt")
                     BATCH="8${LF}S${LF}A${LF}Q"
                 ;;
-                "encrypt sign")
+                "encrypt sign" | "cert encrypt sign")
                     BATCH="8${LF}Q"
                 ;;
-                auth)
+                auth | "auth cert")
                     BATCH="8${LF}S${LF}E${LF}A${LF}Q"
                 ;;
-                encrypt)
+                cert)
+                    BATCH="8${LF}S${LF}E${LF}Q"
+                ;;
+                encrypt | "cert encrypt")
                     BATCH=6
                 ;;
-                sign)
+                sign | "cert sign")
                     BATCH=4
                 ;;
             esac
@@ -308,11 +313,14 @@ build_batch ()
         ;;
         17 | [dD][sS][aA])
             case "${SUBKEY_USAGE:-}" in
-                "" | "auth sign")
+                "" | "auth cert sign" | "auth cert" | "auth sign")
                     BATCH="7${LF}A${LF}Q"
                 ;;
                 auth)
                     BATCH="7${LF}S${LF}A${LF}Q"
+                ;;
+                cert)
+                    BATCH="7${LF}S${LF}Q"
                 ;;
                 sign)
                     BATCH=3
@@ -328,15 +336,18 @@ build_batch ()
             esac
             BATCH="12$LF$SUBKEY_CURVE"
         ;;
-        19 | 22 | [eE][cCdD][dD][sS][aA])
+        19 | 22 | [eE][cCdD][dD][sS][aA] | [dD][eE][fF][aA][uU][lL][tT])
             case "${SUBKEY_USAGE:-}" in
-                "" | "auth sign")
+                "" | "auth sign" | "auth cert sign")
                     BATCH="11${LF}A${LF}Q"
                 ;;
-                auth)
+                auth | "auth cert")
                     BATCH="11${LF}S${LF}A${LF}Q"
                 ;;
-                sign)
+                cert)
+                    BATCH="11${LF}S${LF}Q"
+                ;;
+                sign | "cert sign")
                     BATCH=10
                 ;;
             esac
