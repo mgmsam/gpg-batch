@@ -480,14 +480,18 @@ add_passphrase ()
             }
         ;;
         "$LF")
-            BATCH="$BATCH$LF%no-protection"
-            PASSPHRASE=
-            NO_PROTECTION=yes
+            test -z "${KEY_TYPE:-}" || {
+                BATCH="$BATCH$LF%no-protection"
+                PASSPHRASE=
+                NO_PROTECTION=yes
+            }
         ;;
         *)
             test "${PASSPHRASE:-}" || {
-                PASSPHRASE="$STDIN_PASSPHRASE"
-                BATCH="$BATCH${LF}Passphrase: ${PASSPHRASE:-}"
+                test -z "${KEY_TYPE:-}" || {
+                    PASSPHRASE="$STDIN_PASSPHRASE"
+                    BATCH="$BATCH${LF}Passphrase: ${PASSPHRASE:-}"
+                }
             }
             NO_PROTECTION=
         ;;
