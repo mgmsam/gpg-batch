@@ -163,7 +163,7 @@ mktempdir ()
     umask 077
     while :
     do
-        TMPTRG="$TMPDIR/tmp.$(2>/dev/null "$DATE" +%s)"
+        TMPTRG="$TMPDIR/${PKG:-tmp}.$(2>/dev/null "$DATE" +%s)"
         test -e "$TMPTRG" || {
             >/dev/null 2>&1 "$MKDIR" -p -- "$TMPTRG" && {
                 echo "$TMPTRG"
@@ -202,42 +202,7 @@ gpg_generate_key ()
     }
 }
 
-gpg_add_subkey ()
-{
-    if is_empty "${NO_PROTECTION:-"${PASSPHRASE:-}"}"
-    then
-        run_gpg --command-fd=0 --edit-key "$KEY_ID"
-    else
-        run_gpg --command-fd=0 --pinentry-mode=loopback --edit-key "$KEY_ID"
-    fi
-}
-
-parse_usage ()
-{
-    IFS="$IFS,"
-    set -- $SUBKEY_USAGE
-    while is_diff $# 0
-    do
-        case "$1" in
-            auth)
-                AUTH=auth
-                ;;
-            cert)
-                CERT=cert
-                ;;
-            encrypt)
-                ENCRYPT=encrypt
-                ;;
-            sign)
-                SIGN=sign
-        esac
-        shift
-    done
-    set -- ${AUTH:-} ${CERT:-} ${ENCRYPT:-} ${SIGN:-}
-    echo "$@"
-}
-
-parse_curve ()
+parse_subkey_curve ()
 {
     case "${SUBKEY_CURVE:-}" in
         cv25519)
@@ -273,6 +238,31 @@ parse_curve ()
     esac
 }
 
+parse_subkey_usage ()
+{
+    IFS="$IFS,"
+    set -- $SUBKEY_USAGE
+    while is_diff $# 0
+    do
+        case "$1" in
+            auth)
+                AUTH=auth
+                ;;
+            cert)
+                CERT=cert
+                ;;
+            encrypt)
+                ENCRYPT=encrypt
+                ;;
+            sign)
+                SIGN=sign
+        esac
+        shift
+    done
+    set -- ${AUTH:-} ${CERT:-} ${ENCRYPT:-} ${SIGN:-}
+    echo "$@"
+}
+
 get_subkey ()
 {
     SUBKEY_TYPE=
@@ -298,11 +288,11 @@ get_subkey ()
             Subkey-Curve:*)
                 SUBKEY_CURVE="${SUBKEYWORD#Subkey-Curve:}"
                 SUBKEY_CURVE="${SUBKEY_CURVE#"${SUBKEY_CURVE%%[![:blank:]]*}"}"
-                SUBKEY_CURVE="$(parse_curve)"
+                SUBKEY_CURVE="$(parse_subkey_curve)"
             ;;
             Subkey-Usage:*)
                 SUBKEY_USAGE="${SUBKEYWORD#Subkey-Usage:}"
-                SUBKEY_USAGE="$(parse_usage)"
+                SUBKEY_USAGE="$(parse_subkey_usage)"
             ;;
         esac
         SUBKEY="${SUBKEY#"$SUBKEYWORD"}"
@@ -396,13 +386,23 @@ build_batch ()
     BATCH="addkey$LF$BATCH$LF${EXPIRE_DATE:-}$LF${NO_PROTECTION:+y$LF}save"
 }
 
+gpg_edit_key ()
+{
+    if is_empty "${NO_PROTECTION:-"${PASSPHRASE:-}"}"
+    then
+        run_gpg --command-fd=0 --edit-key "$KEY_ID"
+    else
+        run_gpg --command-fd=0 --pinentry-mode=loopback --edit-key "$KEY_ID"
+    fi
+}
+
 gpg_generate_subkey ()
 {
     while is_not_empty "${SUBKEY:-}"
     do
         get_subkey
         build_batch
-        gpg_add_subkey || GPG_EXIT=$?
+        gpg_edit_key || GPG_EXIT=$?
     done
 }
 
