@@ -194,7 +194,6 @@ gpg_generate_key ()
 {
     STATUS="$(run_gpg "$@" --full-gen-key --status-fd=1)" && {
         is_not_empty "${DRY_RUN:-}" || {
-            gpg_update_trustdb
             KEY_ID="${STATUS##*KEY_CREATED}"
             KEY_ID="${KEY_ID##*[[:blank:]]}"
             KEY_CREATED="${KEY_CREATED:+"$KEY_CREATED "}$KEY_ID"
@@ -548,11 +547,13 @@ run_batch ()
             include_subkey
             check_batch &&
             set_protection &&
+            gpg_update_trustdb &&
             gpg_generate_key
         ;;
     esac &&
     case "${SUBKEY:-}" in
         ?*)
+            gpg_update_trustdb
             gpg_generate_subkey
         ;;
     esac || {
