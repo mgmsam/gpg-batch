@@ -202,7 +202,7 @@ gpg_generate_key ()
     }
 }
 
-gpg_addkey ()
+gpg_add_subkey ()
 {
     if is_empty "${NO_PROTECTION:-"${PASSPHRASE:-}"}"
     then
@@ -402,7 +402,7 @@ gpg_generate_subkey ()
     do
         get_subkey
         build_batch
-        gpg_addkey || GPG_EXIT=$?
+        gpg_add_subkey || GPG_EXIT=$?
     done
 }
 
@@ -484,19 +484,16 @@ $KEY
 KEY
 }
 
-check_key ()
+check_batch ()
 {
-    ORIGINAL_GNUPGHOME="${GNUPGHOME:-}"
-    export   GNUPGHOME="$TMP_GNUPGHOME"
     say -n "checking the GPG key parameters:"
     TESTED_KEY="$KEY$LF%no-protection"
     while :
     do
         DRY_RUN=yes
         BATCH="${CANVAS:-}$TESTED_KEY"
-        STATUS="$(2>&1 gpg_generate_key --dry-run)" || {
+        STATUS="$(2>&1 gpg_generate_key --homedir "$TMP_GNUPGHOME" --dry-run)" || {
             GPG_EXIT=$?
-            GNUPGHOME="${ORIGINAL_GNUPGHOME:-}"
             extend_canvas
             echo " failed$LF$STATUS"
             return "$GPG_EXIT"
@@ -508,7 +505,6 @@ check_key ()
             *)
                 DRY_RUN=
                 BATCH="${CANVAS:-}$KEY"
-                GNUPGHOME="${ORIGINAL_GNUPGHOME:-}"
                 extend_canvas
                 echo " passed"
                 return
@@ -517,19 +513,19 @@ check_key ()
     done
 }
 
-add_passphrase ()
+set_protection ()
 {
     case "${STDIN_PASSPHRASE:-}" in
         "")
             is_empty "${NO_PROTECTION:-}" || {
-                BATCH="$BATCH$LF%no-protection"
                 PASSPHRASE=
+                BATCH="$BATCH$LF%no-protection"
             }
         ;;
         "$LF")
             is_empty "${KEY_TYPE:-}" || {
-                BATCH="$BATCH$LF%no-protection"
                 PASSPHRASE=
+                BATCH="$BATCH$LF%no-protection"
                 NO_PROTECTION=yes
             }
         ;;
@@ -550,8 +546,8 @@ run_batch ()
     case "${KEY:-}" in
         *[![:space:]]*)
             include_subkey
-            check_key &&
-            add_passphrase &&
+            check_batch &&
+            set_protection &&
             gpg_generate_key
         ;;
     esac &&
