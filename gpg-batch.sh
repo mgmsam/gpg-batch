@@ -120,10 +120,25 @@ die ()
     exit "$RETURN"
 }
 
+is_dir ()
+{
+    test -d "${1:-}"
+}
+
+is_exists ()
+{
+    test -e "${1:-}"
+}
+
+is_file ()
+{
+    test -f "${1:-}"
+}
+
 is_file_readable ()
 {
-    test -f "${1:-}" || {
-        test -e "${1:-}" &&
+    is_file "${1:-}" || {
+        is_exists "${1:-}" &&
         say 2 "is not a file: -- '${1:-}'" ||
         say 2 "no such file: -- '${1:-}'"
         return 2
@@ -686,6 +701,10 @@ main ()
     check_dependencies
     TMP_GNUPGHOME="${TMP_GNUPGHOME:-"$(mktempdir)"}" || die "$TMP_GNUPGHOME"
     is_empty "${GPG_OPTIONS:-}" || is_file_readable "$GPG_OPTIONS" || die
+    is_empty  "${GNUPGHOME:-}"  || {
+        is_dir "$GNUPGHOME" || die 2 "no such directory: -- '$GNUPGHOME'"
+        export   GNUPGHOME
+    }
 
     is_diff $# 0 || die 2 "no batch file specified"
 
@@ -732,6 +751,15 @@ do
     ARG_NUM=$((ARG_NUM + 1))
     PREFIX="${ARG_NUM}th argument"
     case "${1:-}" in
+        --homedir)
+            arg_is_not_empty "$1" "${2:-}"
+            ARG_NUM="$((ARG_NUM + 1))" GNUPGHOME="$2"
+            shift
+        ;;
+        --homedir=*)
+            arg_is_not_empty "${1%%=*}" "${1#*=}"
+            GNUPGHOME="${1#*=}"
+        ;;
         --options)
             arg_is_not_empty "$1" "${2:-}"
             ARG_NUM="$((ARG_NUM + 1))" GPG_OPTIONS="$2"
