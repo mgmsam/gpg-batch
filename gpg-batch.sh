@@ -120,6 +120,20 @@ die ()
     exit "$RETURN"
 }
 
+is_file_readable ()
+{
+    test -f "${1:-}" || {
+        test -e "${1:-}" &&
+        say 2 "is not a file: -- '${1:-}'" ||
+        say 2 "no such file: -- '${1:-}'"
+        return 2
+    } >&2
+    test -r "${1:-}" || {
+        say 1 "no read permissions: -- '${1:-}'" >&2
+        return 1
+    }
+}
+
 which ()
 {
     case "${PATH:-}" in
@@ -180,7 +194,7 @@ mktempdir ()
 
 run_gpg ()
 {
-    "$GPG" --expert --batch "$@" <<BATCH
+    "$GPG" --expert --batch ${GPG_OPTIONS:+--options "$GPG_OPTIONS"} "$@" <<BATCH
 $BATCH
 BATCH
 }
@@ -655,7 +669,7 @@ run_batch_file ()
             ;;
         esac
         KEY="${KEY:+"$KEY$LF"}${KEYWORD:-}"
-    done < "$1"
+    done < "$BATCH_FILE"
     is_empty "${KEY:-"${SUBKEY:-}"}" && return || run_batch
 }
 
@@ -669,13 +683,19 @@ check_dependencies ()
 
 main ()
 {
-    PKG="${0##*/}"
     check_dependencies
     TMP_GNUPGHOME="${TMP_GNUPGHOME:-"$(mktempdir)"}" || die "$TMP_GNUPGHOME"
+    is_empty "${GPG_OPTIONS:-}" || is_file_readable "$GPG_OPTIONS" || die
+
+    is_diff $# 0 || die 2 "no batch file specified"
 
     for BATCH_FILE in "$@"
     do
-        run_batch_file "$BATCH_FILE"
+        is_file_readable "${BATCH_FILE:-}" || {
+            GPG_EXIT=2
+            break
+        }
+        run_batch_file
     done
     gpg_update_trustdb
     is_empty "${KEY_CREATED:-}" || say 0 "key created: $KEY_CREATED"
@@ -683,6 +703,7 @@ main ()
     return "${GPG_EXIT:-0}"
 }
 
+PKG="${0##*/}"
 LF='
 '
 is_term 0 ||
@@ -691,5 +712,47 @@ do
     STDIN_PASSPHRASE="${STDIN_PASSPHRASE:-"$LF"}"
     break
 done
+
+arg_is_not_empty ()
+{
+    is_not_empty "${2:-}"  ||
+        die 2 "$PREFIX: missing argument for option \"$1\""
+}
+
+invalid_option ()
+{
+    is_equal "${#1}" 2 &&
+    die 2 "$PREFIX: invalid option -- '${1#?}'" ||
+    die 2 "$PREFIX: unrecognized option '$1'"
+}
+
+ARG_NUM=0
+while is_diff $# 0
+do
+    ARG_NUM=$((ARG_NUM + 1))
+    PREFIX="${ARG_NUM}th argument"
+    case "${1:-}" in
+        --options)
+            arg_is_not_empty "$1" "${2:-}"
+            ARG_NUM="$((ARG_NUM + 1))" GPG_OPTIONS="$2"
+            shift
+        ;;
+        --options=*)
+            arg_is_not_empty "${1%%=*}" "${1#*=}"
+            GPG_OPTIONS="${1#*=}"
+        ;;
+        --)
+            shift
+            break
+        ;;
+        -*)
+            invalid_option "$1"
+        ;;
+        *)
+            break
+    esac
+    shift
+done
+unset -v ARG_NUM PREFIX
 
 main "$@"
