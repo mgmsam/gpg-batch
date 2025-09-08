@@ -163,9 +163,9 @@ mktempdir ()
     umask 077
     while :
     do
-        TMPTRG="$TMPDIR/tmp.$(2>/dev/null date +%s)"
+        TMPTRG="$TMPDIR/tmp.$(2>/dev/null "$DATE" +%s)"
         test -e "$TMPTRG" || {
-            >/dev/null 2>&1 mkdir -p -- "$TMPTRG" && {
+            >/dev/null 2>&1 "$MKDIR" -p -- "$TMPTRG" && {
                 echo "$TMPTRG"
                 return
             }
@@ -662,10 +662,18 @@ run_batch_file ()
     is_empty "${KEY:-"${SUBKEY:-}"}" && return || run_batch
 }
 
+check_dependencies ()
+{
+     DATE="$(which date)"  || die  "date: command not found"
+      GPG="$(which gpg)"   || die   "gpg: command not found"
+    MKDIR="$(which mkdir)" || die "mkdir: command not found"
+       RM="$(which rm)"    || die    "rm: command not found"
+}
+
 main ()
 {
     PKG="${0##*/}"
-    GPG="$(which gpg)" || die "gpg: command not found"
+    check_dependencies
     TMP_GNUPGHOME="${TMP_GNUPGHOME:-"$(mktempdir)"}" || die "$TMP_GNUPGHOME"
 
     for BATCH_FILE in "$@"
@@ -674,7 +682,7 @@ main ()
     done
     gpg_update_trustdb
     is_empty "${KEY_CREATED:-}" || say 0 "key created: $KEY_CREATED"
-    STATUS="$(2>&1 rm -rvf -- "$TMP_GNUPGHOME")" || die "[TMP_GNUPGHOME] $STATUS"
+    STATUS="$(2>&1 "$RM" -rvf -- "$TMP_GNUPGHOME")" || die "[TMP_GNUPGHOME] $STATUS"
     return "${GPG_EXIT:-0}"
 }
 
