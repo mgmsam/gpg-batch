@@ -402,7 +402,7 @@ gpg_generate_subkey ()
     do
         get_subkey
         build_batch
-        gpg_edit_key || GPG_EXIT=$?
+        gpg_edit_key || return
     done
 }
 
