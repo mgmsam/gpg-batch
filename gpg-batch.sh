@@ -287,7 +287,7 @@ set_subkey_usage ()
         shift
     done
     set -- ${AUTH:-} ${CERT:-} ${ENCRYPT:-} ${SIGN:-}
-    SUBKEY_USAGE="$@"
+    SUBKEY_USAGE="$*"
 }
 
 get_subkey ()
@@ -506,7 +506,7 @@ check_batch ()
     while :
     do
         BATCH="${CANVAS:-}$TESTED_KEY"
-        2>&1 >/dev/null gpg_generate_key --homedir "$TMP_GNUPGHOME" --dry-run || return
+        gpg_generate_key --homedir "$TMP_GNUPGHOME" --dry-run || return
         case "$TESTED_KEY" in
             *$LF##*)
                 enable_next_subkey
@@ -515,16 +515,16 @@ check_batch ()
                 return
             ;;
         esac
-    done
+    done 2>&1 >/dev/null
 }
 
 get_error_line_number ()
 {
     GPG_EXIT=$?
-    ERROR_LINE="$(echo "$STATUS" | grep -o "^\(gpg: -:\)[0-9]\+")"
+    ERROR_LINE="$(echo "$STATUS" | "$GREP" -o "^\(gpg: -:\)[0-9]\+")"
     ERROR_LINE="${ERROR_LINE##*:}"
     is_empty "${ERROR_LINE:-}" ||
-    STATUS="$(echo "$STATUS" | sed "s%^\(gpg: -:\)[0-9]\+%\1$((ERROR_LINE - 1))%")"
+    STATUS="$(echo "$STATUS" | "$SED" "s%^\(gpg: -:\)[0-9]\+%\1$((ERROR_LINE - 1))%")"
     return "$GPG_EXIT"
 }
 
@@ -717,9 +717,11 @@ run_batch_file ()
 check_dependencies ()
 {
      DATE="$(which date)"  || die  "date: command not found"
+     GREP="$(which grep)"  || die  "grep: command not found"
       GPG="$(which gpg)"   || die   "gpg: command not found"
     MKDIR="$(which mkdir)" || die "mkdir: command not found"
        RM="$(which rm)"    || die    "rm: command not found"
+      SED="$(which sed)"   || die   "sed: command not found"
 }
 
 main ()
