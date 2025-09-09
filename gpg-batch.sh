@@ -209,7 +209,7 @@ mktempdir ()
 
 run_gpg ()
 {
-    "$GPG" ${GPG_OPTIONS:+--options "$GPG_OPTIONS"} "$@"
+    "$GPG" ${GPG_OPTIONS:+--options "$GPG_OPTIONS"} ${NO_TTY:-} "$@"
 }
 
 gpg_update_trustdb ()
@@ -226,7 +226,7 @@ BATCH
 
 gpg_generate_key ()
 {
-    gpg_run_batch "$@" --full-gen-key --status-fd=1
+    gpg_run_batch --full-gen-key --status-fd=1 "$@"
 }
 
 set_subkey_curve ()
@@ -360,8 +360,13 @@ build_batch ()
                 ;;
             esac
             BATCH="$BATCH$LF${SUBKEY_LENGTH:-}"
+            SUBKEY_TYPE=RSA
         ;;
-        16 | ELG | ELG-E)
+        16 | ELG)
+            BATCH="5$LF${SUBKEY_LENGTH:-}"
+            SUBKEY_TYPE=ELG
+        ;;
+        ELG-E)
             BATCH="5$LF${SUBKEY_LENGTH:-}"
         ;;
         17 | [dD][sS][aA])
@@ -380,6 +385,7 @@ build_batch ()
                 ;;
             esac
             BATCH="$BATCH$LF${SUBKEY_LENGTH:-}"
+            SUBKEY_TYPE=DSA
         ;;
         18 | [eE][cC][cC] | [eE][cC][dD][hH])
             case "$SUBKEY_CURVE" in
@@ -388,6 +394,7 @@ build_batch ()
                 ;;
             esac
             BATCH="12$LF$SUBKEY_CURVE"
+            SUBKEY_TYPE=ECC
         ;;
         19 | 22 | [eE][cCdD][dD][sS][aA] | [dD][eE][fF][aA][uU][lL][tT])
             case "${SUBKEY_USAGE:-}" in
@@ -405,6 +412,7 @@ build_batch ()
                 ;;
             esac
             BATCH="$BATCH$LF$SUBKEY_CURVE"
+            SUBKEY_TYPE=ECC
         ;;
     esac
 
@@ -429,7 +437,17 @@ gpg_generate_subkey ()
     do
         get_subkey
         build_batch
-        gpg_edit_key || return
+        is_empty "${NO_TTY:-}" &&
+        say    "generating a subkey [$SUBKEY_TYPE]: ..." ||
+        say -n "generating a subkey [$SUBKEY_TYPE]:"
+        gpg_edit_key || {
+            GPG_EXIT=$?
+            echo " failed"
+            return "$GPG_EXIT"
+        }
+        is_empty "${NO_TTY:-}" &&
+        say    "generating a subkey [$SUBKEY_TYPE]: success" ||
+        echo " success"
     done
 }
 
@@ -593,10 +611,14 @@ run_batch ()
             echo " passed"
             set_protection
             gpg_update_trustdb
+            KEY_TYPE="${KEY_TYPE#*:}"
+            KEY_TYPE="${KEY_TYPE#"${KEY_TYPE%%[![:blank:]]*}"}"
+            say -n "generating a key [$KEY_TYPE]:"
             STATUS="$(2>&1 gpg_generate_key)" && {
                 KEY_ID="${STATUS##*KEY_CREATED}"
                 KEY_ID="${KEY_ID##*[[:blank:]]}"
                 KEY_CREATED="${KEY_CREATED:+"$KEY_CREATED "}$KEY_ID"
+                echo " success"
             }
         }
     fi &&
@@ -651,7 +673,7 @@ run_batch_file ()
                 KEYWORD=
             ;;
             Key-Type:*)
-                is_empty "${KEY_TYPE:-}" && KEY_TYPE=1 || run_batch
+                is_empty "${KEY_TYPE:-}" && KEY_TYPE="$KEYWORD" || run_batch
             ;;
             Expire-Date:*)
                 is_empty "${EXPIRE_DATE:-}" &&
@@ -799,6 +821,9 @@ do
         --homedir=*)
             arg_is_not_empty "${1%%=*}" "${1#*=}"
             GNUPGHOME="${1#*=}"
+        ;;
+        --no-tty)
+            NO_TTY=--no-tty
         ;;
         --options)
             arg_is_not_empty "$1" "${2:-}"
