@@ -217,7 +217,7 @@ gpg_update_trustdb ()
     >/dev/null 2>&1 run_gpg --update-trustdb || :
 }
 
-gpg_batch ()
+gpg_run_batch ()
 {
     run_gpg --expert --batch "$@" <<BATCH
 $BATCH
@@ -226,52 +226,46 @@ BATCH
 
 gpg_generate_key ()
 {
-    STATUS="$(gpg_batch "$@" --full-gen-key --status-fd=1)" && {
-        is_not_empty "${DRY_RUN:-}" || {
-            KEY_ID="${STATUS##*KEY_CREATED}"
-            KEY_ID="${KEY_ID##*[[:blank:]]}"
-            KEY_CREATED="${KEY_CREATED:+"$KEY_CREATED "}$KEY_ID"
-        }
-    }
+    gpg_run_batch "$@" --full-gen-key --status-fd=1
 }
 
-parse_subkey_curve ()
+set_subkey_curve ()
 {
     case "${SUBKEY_CURVE:-}" in
         cv25519)
-            echo 0
+            SUBKEY_CURVE=0
         ;;
         ed25519)
-            echo 1
+            SUBKEY_CURVE=1
         ;;
         ed448)
-            echo 2
+            SUBKEY_CURVE=2
         ;;
         nistp256)
-            echo 3
+            SUBKEY_CURVE=3
         ;;
         nistp384)
-            echo 4
+            SUBKEY_CURVE=4
         ;;
         nistp521)
-            echo 5
+            SUBKEY_CURVE=5
         ;;
         brainpoolP256r1)
-            echo 6
+            SUBKEY_CURVE=6
         ;;
         brainpoolP384r1)
-            echo 7
+            SUBKEY_CURVE=7
         ;;
         brainpoolP512r1)
-            echo 8
+            SUBKEY_CURVE=8
         ;;
         secp256k1)
-            echo 9
+            SUBKEY_CURVE=9
         ;;
     esac
 }
 
-parse_subkey_usage ()
+set_subkey_usage ()
 {
     IFS="$IFS,"
     set -- $SUBKEY_USAGE
@@ -293,7 +287,7 @@ parse_subkey_usage ()
         shift
     done
     set -- ${AUTH:-} ${CERT:-} ${ENCRYPT:-} ${SIGN:-}
-    echo "$@"
+    SUBKEY_USAGE="$@"
 }
 
 get_subkey ()
@@ -321,11 +315,11 @@ get_subkey ()
             Subkey-Curve:*)
                 SUBKEY_CURVE="${SUBKEYWORD#Subkey-Curve:}"
                 SUBKEY_CURVE="${SUBKEY_CURVE#"${SUBKEY_CURVE%%[![:blank:]]*}"}"
-                SUBKEY_CURVE="$(parse_subkey_curve)"
+                set_subkey_curve
             ;;
             Subkey-Usage:*)
                 SUBKEY_USAGE="${SUBKEYWORD#Subkey-Usage:}"
-                SUBKEY_USAGE="$(parse_subkey_usage)"
+                set_subkey_usage
             ;;
         esac
         SUBKEY="${SUBKEY#"$SUBKEYWORD"}"
@@ -423,9 +417,9 @@ gpg_edit_key ()
 {
     if is_empty "${NO_PROTECTION:-"${PASSPHRASE:-}"}"
     then
-        gpg_batch --command-fd=0 --edit-key "$KEY_ID"
+        gpg_run_batch --command-fd=0 --edit-key "$KEY_ID"
     else
-        gpg_batch --command-fd=0 --pinentry-mode=loopback --edit-key "$KEY_ID"
+        gpg_run_batch --command-fd=0 --pinentry-mode=loopback --edit-key "$KEY_ID"
     fi
 }
 
@@ -507,6 +501,33 @@ KEY
     TESTED_KEY="$UPDATED_KEY"
 }
 
+check_batch ()
+{
+    while :
+    do
+        BATCH="${CANVAS:-}$TESTED_KEY"
+        2>&1 >/dev/null gpg_generate_key --homedir "$TMP_GNUPGHOME" --dry-run || return
+        case "$TESTED_KEY" in
+            *$LF##*)
+                enable_next_subkey
+            ;;
+            *)
+                return
+            ;;
+        esac
+    done
+}
+
+get_error_line_number ()
+{
+    GPG_EXIT=$?
+    ERROR_LINE="$(echo "$STATUS" | grep -o "^\(gpg: -:\)[0-9]\+")"
+    ERROR_LINE="${ERROR_LINE##*:}"
+    is_empty "${ERROR_LINE:-}" ||
+    STATUS="$(echo "$STATUS" | sed "s%^\(gpg: -:\)[0-9]\+%\1$((ERROR_LINE - 1))%")"
+    return "$GPG_EXIT"
+}
+
 extend_canvas ()
 {
     while read -r LINE || is_not_empty "${LINE:-}"
@@ -515,45 +536,6 @@ extend_canvas ()
     done <<KEY
 $KEY
 KEY
-}
-
-check_batch ()
-{
-    say -n "checking the GPG key parameters:"
-    TESTED_KEY="$KEY$LF%no-protection"
-    is_empty "${GPG_EDIT_KEY_ID:-}"  || {
-        is_not_empty "${KEY_TYPE:-}"  || TESTED_KEY="Key-Type: 1$LF$TESTED_KEY"
-        is_not_empty "${NAME_REAL:-}" || TESTED_KEY="$TESTED_KEY${LF}Name-Real: $PKG"
-    }
-    while :
-    do
-        DRY_RUN=yes
-        BATCH="${CANVAS:-}$TESTED_KEY"
-        STATUS="$(2>&1 gpg_generate_key --homedir "$TMP_GNUPGHOME" --dry-run)" || {
-            GPG_EXIT=$?
-            extend_canvas
-            is_not_empty "${KEY_TYPE:-}" || {
-                ERROR_LINE="$(echo "$STATUS" | grep -o "^\(gpg: -:\)[0-9]\+")"
-                ERROR_LINE="${ERROR_LINE##*:}"
-                is_empty "${ERROR_LINE:-}" ||
-                STATUS="$(echo "$STATUS" | sed "s%^\(gpg: -:\)[0-9]\+%\1$((ERROR_LINE - 1))%")"
-            }
-            echo " failed$LF$STATUS"
-            return "$GPG_EXIT"
-        }
-        case "$TESTED_KEY" in
-            *$LF##*)
-                enable_next_subkey
-            ;;
-            *)
-                DRY_RUN=
-                BATCH="${CANVAS:-}$KEY"
-                extend_canvas
-                echo " passed"
-                return
-            ;;
-        esac
-    done
 }
 
 set_protection ()
@@ -586,19 +568,38 @@ set_protection ()
 
 run_batch ()
 {
-    case "${KEY:-}" in
-        *[![:space:]]*)
-            include_subkey
-            check_batch && {
-                set_protection
-                is_not_empty "${GPG_EDIT_KEY_ID:-}" &&
-                KEY_ID="${GPG_EDIT_KEY_ID:-}" || {
-                    gpg_update_trustdb
-                    gpg_generate_key
-                }
+    include_subkey
+    say -n "checking the GPG key parameters:"
+    TESTED_KEY="$KEY$LF%no-protection"
+    if is_not_empty "${GPG_EDIT_KEY_ID:-}"
+    then
+        is_not_empty "${NAME_REAL:-}" || TESTED_KEY="$TESTED_KEY${LF}Name-Real: $PKG"
+        if is_empty "${KEY_TYPE:-}"
+        then
+            TESTED_KEY="Key-Type: 1$LF$TESTED_KEY"
+            STATUS="$(check_batch)" || get_error_line_number
+        else
+            STATUS="$(check_batch)"
+        fi && {
+            KEY_ID="${GPG_EDIT_KEY_ID:-}"
+            extend_canvas
+            echo " passed"
+            set_protection
+        }
+    else
+        STATUS="$(check_batch)" && {
+            BATCH="${CANVAS:-}$KEY"
+            extend_canvas
+            echo " passed"
+            set_protection
+            gpg_update_trustdb
+            STATUS="$(2>&1 gpg_generate_key)" && {
+                KEY_ID="${STATUS##*KEY_CREATED}"
+                KEY_ID="${KEY_ID##*[[:blank:]]}"
+                KEY_CREATED="${KEY_CREATED:+"$KEY_CREATED "}$KEY_ID"
             }
-        ;;
-    esac &&
+        }
+    fi &&
     case "${SUBKEY:-}" in
         ?*)
             gpg_update_trustdb
@@ -606,6 +607,8 @@ run_batch ()
         ;;
     esac || {
         GPG_EXIT=$?
+        extend_canvas
+        echo " failed$LF$STATUS"
         say "$GPG_EXIT" "error in the file: -- '$BATCH_FILE'"
     }
     set_batch_vars
@@ -624,8 +627,8 @@ set_batch_vars ()
     SUBKEY_IS_ADDITIONAL=
     EXPIRE_DATE=
     EXPIRE_DATE_IS_ADDITIONAL=
-    NO_PROTECTION=
     NAME_REAL=
+    NO_PROTECTION=
     PASSPHRASE=
 }
 
