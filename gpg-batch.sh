@@ -209,9 +209,7 @@ mktempdir ()
 
 run_gpg ()
 {
-    "$GPG" --expert --batch ${GPG_OPTIONS:+--options "$GPG_OPTIONS"} "$@" <<BATCH
-$BATCH
-BATCH
+    "$GPG" ${GPG_OPTIONS:+--options "$GPG_OPTIONS"} "$@"
 }
 
 gpg_update_trustdb ()
@@ -219,9 +217,16 @@ gpg_update_trustdb ()
     >/dev/null 2>&1 run_gpg --update-trustdb || :
 }
 
+gpg_batch ()
+{
+    run_gpg --expert --batch "$@" <<BATCH
+$BATCH
+BATCH
+}
+
 gpg_generate_key ()
 {
-    STATUS="$(run_gpg "$@" --full-gen-key --status-fd=1)" && {
+    STATUS="$(gpg_batch "$@" --full-gen-key --status-fd=1)" && {
         is_not_empty "${DRY_RUN:-}" || {
             KEY_ID="${STATUS##*KEY_CREATED}"
             KEY_ID="${KEY_ID##*[[:blank:]]}"
@@ -418,9 +423,9 @@ gpg_edit_key ()
 {
     if is_empty "${NO_PROTECTION:-"${PASSPHRASE:-}"}"
     then
-        run_gpg --command-fd=0 --edit-key "$KEY_ID"
+        gpg_batch --command-fd=0 --edit-key "$KEY_ID"
     else
-        run_gpg --command-fd=0 --pinentry-mode=loopback --edit-key "$KEY_ID"
+        gpg_batch --command-fd=0 --pinentry-mode=loopback --edit-key "$KEY_ID"
     fi
 }
 
@@ -453,7 +458,7 @@ include_subkey ()
 $KEY
 KEY
     } || {
-        SUBKEY_FIRST=
+        is_not_empty "${GPG_EDIT_KEY_ID:-}" || SUBKEY_FIRST=
         while read -r LINE || is_not_empty "${LINE:-}"
         do
             case "${LINE:-}" in
@@ -516,6 +521,10 @@ check_batch ()
 {
     say -n "checking the GPG key parameters:"
     TESTED_KEY="$KEY$LF%no-protection"
+    is_empty "${GPG_EDIT_KEY_ID:-}"  || {
+        is_not_empty "${KEY_TYPE:-}"  || TESTED_KEY="Key-Type: 1$LF$TESTED_KEY"
+        is_not_empty "${NAME_REAL:-}" || TESTED_KEY="$TESTED_KEY${LF}Name-Real: $PKG"
+    }
     while :
     do
         DRY_RUN=yes
@@ -523,6 +532,12 @@ check_batch ()
         STATUS="$(2>&1 gpg_generate_key --homedir "$TMP_GNUPGHOME" --dry-run)" || {
             GPG_EXIT=$?
             extend_canvas
+            is_not_empty "${KEY_TYPE:-}" || {
+                ERROR_LINE="$(echo "$STATUS" | grep -o "^\(gpg: -:\)[0-9]\+")"
+                ERROR_LINE="${ERROR_LINE##*:}"
+                is_empty "${ERROR_LINE:-}" ||
+                STATUS="$(echo "$STATUS" | sed "s%^\(gpg: -:\)[0-9]\+%\1$((ERROR_LINE - 1))%")"
+            }
             echo " failed$LF$STATUS"
             return "$GPG_EXIT"
         }
@@ -551,7 +566,7 @@ set_protection ()
             }
         ;;
         "$LF")
-            is_empty "${KEY_TYPE:-}" || {
+            is_empty "${KEY_TYPE:-"${SUBKEY_TYPE:-}"}" || {
                 PASSPHRASE=
                 BATCH="$BATCH$LF%no-protection"
                 NO_PROTECTION=yes
@@ -559,7 +574,7 @@ set_protection ()
         ;;
         *)
             is_not_empty "${PASSPHRASE:-}" || {
-                is_empty "${KEY_TYPE:-}" || {
+                is_empty "${KEY_TYPE:-"${SUBKEY_TYPE:-}"}" || {
                     PASSPHRASE="$STDIN_PASSPHRASE"
                     BATCH="$BATCH${LF}Passphrase: ${PASSPHRASE:-}"
                 }
@@ -574,10 +589,14 @@ run_batch ()
     case "${KEY:-}" in
         *[![:space:]]*)
             include_subkey
-            check_batch &&
-            set_protection &&
-            gpg_update_trustdb &&
-            gpg_generate_key
+            check_batch && {
+                set_protection
+                is_not_empty "${GPG_EDIT_KEY_ID:-}" &&
+                KEY_ID="${GPG_EDIT_KEY_ID:-}" || {
+                    gpg_update_trustdb
+                    gpg_generate_key
+                }
+            }
         ;;
     esac &&
     case "${SUBKEY:-}" in
@@ -606,6 +625,7 @@ set_batch_vars ()
     EXPIRE_DATE=
     EXPIRE_DATE_IS_ADDITIONAL=
     NO_PROTECTION=
+    NAME_REAL=
     PASSPHRASE=
 }
 
@@ -642,6 +662,9 @@ run_batch_file ()
                         KEYWORD="##$KEYWORD"
                     }
                 }
+            ;;
+            Name-Real:*)
+                NAME_REAL=1
             ;;
             Passphrase:*)
                 PASSPHRASE="${KEYWORD#Passphrase:}"
@@ -705,6 +728,9 @@ main ()
         is_dir "$GNUPGHOME" || die 2 "no such directory: -- '$GNUPGHOME'"
         export   GNUPGHOME
     }
+    is_empty "${GPG_EDIT_KEY_ID:-}" ||
+        >/dev/null 2>&1 run_gpg --list-keys "$GPG_EDIT_KEY_ID" ||
+            die "key not found: -- '$GPG_EDIT_KEY_ID'"
 
     is_diff $# 0 || die 2 "no batch file specified"
 
@@ -751,6 +777,15 @@ do
     ARG_NUM=$((ARG_NUM + 1))
     PREFIX="${ARG_NUM}th argument"
     case "${1:-}" in
+        --edit-key)
+            arg_is_not_empty "$1" "${2:-}"
+            ARG_NUM="$((ARG_NUM + 1))" GPG_EDIT_KEY_ID="$2"
+            shift
+        ;;
+        --edit-key=*)
+            arg_is_not_empty "${1%%=*}" "${1#*=}"
+            GPG_EDIT_KEY_ID="${1#*=}"
+        ;;
         --homedir)
             arg_is_not_empty "$1" "${2:-}"
             ARG_NUM="$((ARG_NUM + 1))" GNUPGHOME="$2"
