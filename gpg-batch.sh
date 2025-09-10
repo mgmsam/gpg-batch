@@ -209,7 +209,7 @@ mktempdir ()
 
 run_gpg ()
 {
-    "$GPG" ${GPG_OPTIONS:+--options "$GPG_OPTIONS"} ${NO_TTY:-} "$@"
+    "$GPG" ${GPG_OPTIONS:+--options "$GPG_OPTIONS"} ${NO_TTY:-} ${VERBOSE:-} "$@"
 }
 
 gpg_update_trustdb ()
@@ -463,22 +463,16 @@ gpg_generate_subkey ()
         get_subkey
         SUBKEY_TYPE="$(get_key_type "$SUBKEY_TYPE")"
         build_batch
-        if is_empty "${NO_TTY:-}"
-        then
-            say "generating a subkey [$SUBKEY_TYPE]: ..."
+        is_empty "${VERBOSE:-}" && {
+            gpg_edit_key || break
+        } || {
+            say "generating the GPG subkey [$SUBKEY_TYPE]: ..."
             gpg_edit_key &&
-            say "generating a subkey [$SUBKEY_TYPE]: success" || {
-                say -n "generating a subkey [$SUBKEY_TYPE]: failed"
-                return
-            }
-        else
-            say -n "generating a subkey [$SUBKEY_TYPE]:"
-            gpg_edit_key &&
-            echo " success" || {
-                echo " failed"
-                return
-            }
-        fi
+                say "generating the GPG subkey [$SUBKEY_TYPE]: success" || {
+                    say "generating the GPG subkey [$SUBKEY_TYPE]: failed"
+                    break
+                }
+        }
     done
 }
 
@@ -627,7 +621,7 @@ add_batch_filename ()
 run_batch ()
 {
     include_subkey
-    say -n "checking the GPG key parameters:"
+    is_empty "${VERBOSE:-}" || say -n "checking the GPG key parameters:"
     TESTED_KEY="$KEY$LF%no-protection"
     if is_not_empty "${GPG_EDIT_KEY_ID:-}"
     then
@@ -641,25 +635,25 @@ run_batch ()
         fi && {
             KEY_ID="${GPG_EDIT_KEY_ID:-}"
             extend_canvas
-            echo " passed"
+            is_empty "${VERBOSE:-}" || echo " passed"
             set_protection
         }
     else
         STATUS="$(check_batch)" || add_batch_filename && {
             BATCH="${CANVAS:-}$KEY"
-            extend_canvas
-            echo " passed"
+            is_empty "${VERBOSE:-}" || echo " passed"
             set_protection
             gpg_update_trustdb
             KEY_TYPE="${KEY_TYPE#*:}"
             KEY_TYPE="${KEY_TYPE#"${KEY_TYPE%%[![:blank:]]*}"}"
             KEY_TYPE="$(get_key_type "$KEY_TYPE")"
-            say -n "generating a key [$KEY_TYPE]:"
-            STATUS="$(2>&1 gpg_generate_key)" && {
+            is_empty "${VERBOSE:-}" || say "generating the GPG key [$KEY_TYPE]: ..."
+            STATUS="$(gpg_generate_key)" && {
+                extend_canvas
                 KEY_ID="${STATUS##*KEY_CREATED}"
                 KEY_ID="${KEY_ID##*[[:blank:]]}"
                 KEY_CREATED="${KEY_CREATED:+"$KEY_CREATED "}$KEY_ID"
-                echo " success"
+                is_empty "${VERBOSE:-}" || say "generating the GPG key [$KEY_TYPE]: success"
             }
         }
     fi &&
@@ -671,7 +665,8 @@ run_batch ()
     esac || {
         GPG_EXIT=$?
         extend_canvas
-        echo " failed$LF$STATUS"
+        is_empty "${VERBOSE:-}" &&  echo "${STATUS:-}" ||
+                                    echo " failed${STATUS:+"$LF$STATUS"}"
     }
     set_batch_vars
 }
@@ -810,7 +805,7 @@ main ()
         run_batch_file
     done
     gpg_update_trustdb
-    is_empty "${KEY_CREATED:-}" || say 0 "key created: $KEY_CREATED"
+    is_empty "${KEY_CREATED:+"${VERBOSE:-}"}" || say 0 "key created: $KEY_CREATED"
     STATUS="$(2>&1 "$RM" -rvf -- "$TMP_GNUPGHOME")" || die "[TMP_GNUPGHOME] $STATUS"
     return "${GPG_EXIT:-0}"
 }
@@ -873,6 +868,15 @@ do
         --options=*)
             arg_is_not_empty "${1%%=*}" "${1#*=}"
             GPG_OPTIONS="${1#*=}"
+        ;;
+        -v | --verbose)
+            VERBOSE="${VERBOSE:+"$VERBOSE "}--verbose"
+        ;;
+        -v*)
+            VERBOSE="${VERBOSE:+"$VERBOSE "}--verbose"
+            ARG="-${1#??}"
+            shift
+            set -- '' "$ARG" "$@"
         ;;
         --)
             shift
