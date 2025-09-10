@@ -209,7 +209,7 @@ mktempdir ()
 
 run_gpg ()
 {
-    "$GPG" ${GPG_OPTIONS:+--options "$GPG_OPTIONS"} ${NO_TTY:-} ${VERBOSE:-} "$@"
+    "$GPG" ${GPG_OPTIONS:+--options "$GPG_OPTIONS"} ${NO_TTY:-} ${VERBOSE:-} ${QUIET:-} "$@"
 }
 
 gpg_update_trustdb ()
@@ -868,6 +868,15 @@ do
         --options=*)
             arg_is_not_empty "${1%%=*}" "${1#*=}"
             GPG_OPTIONS="${1#*=}"
+        ;;
+        -q | --quiet)
+            QUIET=--quiet
+        ;;
+        -q*)
+            QUIET=--quiet
+            ARG="-${1#??}"
+            shift
+            set -- '' "$ARG" "$@"
         ;;
         -v | --verbose)
             VERBOSE="${VERBOSE:+"$VERBOSE "}--verbose"
