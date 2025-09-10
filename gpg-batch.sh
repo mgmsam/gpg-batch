@@ -567,16 +567,6 @@ check_batch ()
     done 2>&1 >/dev/null
 }
 
-get_error_line_number ()
-{
-    GPG_EXIT=$?
-    ERROR_LINE="$(echo "$STATUS" | "$GREP" -o "^\(gpg: -:\)[0-9]\+")"
-    ERROR_LINE="${ERROR_LINE##*:}"
-    is_empty "${ERROR_LINE:-}" ||
-    STATUS="$(echo "$STATUS" | "$SED" "s%^\(gpg: -:\)[0-9]\+%\1$((ERROR_LINE - 1))%")"
-    return "$GPG_EXIT"
-}
-
 extend_canvas ()
 {
     while read -r LINE || is_not_empty "${LINE:-}"
@@ -615,6 +605,25 @@ set_protection ()
     esac
 }
 
+get_error_line_number ()
+{
+    GPG_EXIT=$?
+    ERROR_LINE="$(echo "$STATUS" | "$GREP" -o "^\(gpg: -:\)[0-9]\+")"
+    ERROR_LINE="${ERROR_LINE##*:}"
+    is_empty "${ERROR_LINE:-}" ||
+    STATUS="$(echo "$STATUS" | "$SED" "s%^\(gpg: \)-:[0-9]\+%\1$BATCH_FILE:$((ERROR_LINE - 1))%")"
+    return "$GPG_EXIT"
+}
+
+add_batch_filename ()
+{
+    GPG_EXIT=$?
+    ERROR_LINE="$(echo "$STATUS" | "$GREP" -o "^\(gpg: -:\)")"
+    is_empty "${ERROR_LINE:-}" ||
+    STATUS="$(echo "$STATUS" | "$SED" "s%^\(gpg: \)-:%\1$BATCH_FILE:%")"
+    return "$GPG_EXIT"
+}
+
 run_batch ()
 {
     include_subkey
@@ -628,7 +637,7 @@ run_batch ()
             TESTED_KEY="Key-Type: 1$LF$TESTED_KEY"
             STATUS="$(check_batch)" || get_error_line_number
         else
-            STATUS="$(check_batch)"
+            STATUS="$(check_batch)" || add_batch_filename
         fi && {
             KEY_ID="${GPG_EDIT_KEY_ID:-}"
             extend_canvas
@@ -636,7 +645,7 @@ run_batch ()
             set_protection
         }
     else
-        STATUS="$(check_batch)" && {
+        STATUS="$(check_batch)" || add_batch_filename && {
             BATCH="${CANVAS:-}$KEY"
             extend_canvas
             echo " passed"
@@ -663,7 +672,6 @@ run_batch ()
         GPG_EXIT=$?
         extend_canvas
         echo " failed$LF$STATUS"
-        say "$GPG_EXIT" "error in the file: -- '$BATCH_FILE'"
     }
     set_batch_vars
 }
