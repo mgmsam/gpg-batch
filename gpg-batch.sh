@@ -1,5 +1,5 @@
 #!/bin/sh
-# gpg-batch. Unattended key generation.
+# gpg-batch.sh. Unattended key generation.
 #
 # Copyright (c) 2025 Semyon A Mironov
 #
@@ -17,6 +17,66 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+usage ()
+{
+    echo "
+Usage: $PKG [OPTION] [--] BATCHFILE ...
+   or: $PKG [OPTION] --edit-key <key-ID> [--] BATCHFILE ..."
+}
+
+show_help ()
+{
+    is_empty "${GPG:-}" && >&2 say "gpg: command not found" || "$GPG" --version
+    usage
+    echo "
+Commands:
+      --edit-key <key-ID>   edit a key
+
+Options:
+      --homedir dir         Set the name of the home directory to dir. If this
+                            option is not used, the home directory defaults to
+                            ‘~/.gnupg’. It is only recognized when given on the
+                            command line. It also overrides any home directory
+                            stated through the environment variable ‘GNUPGHOME’
+                            or (on Windows systems) by means of the Registry
+                            entry HKCU\Software\GNU\GnuPG:HomeDir.
+
+      --version             display version information and exit
+  -h, -?, --help            display this help and exit
+
+Options controlling the diagnostic output:
+  -v, --verbose             verbose
+  -q, --quiet               be somewhat more quiet
+      --options FILE        read options from FILE
+      --no-tty              Make sure that the TTY (terminal) is never used for
+                            any output. This option is needed in some cases
+                            because GnuPG sometimes prints warnings to the TTY
+                            even if --batch is used.
+
+An argument of '--' disables further option processing
+
+Report bugs to: bug-$PKG@mgmsam.pro
+$PKG home page: <https://www.mgmsam.pro/shell-script/$PKG/>"
+    exit
+}
+
+show_version ()
+{
+    echo "${0##*/} ${1:-0.0.1} - (C) 10.09.2025
+
+Written by Mironov A Semyon
+Site       www.mgmsam.pro
+Email      s.mironov@mgmsam.pro"
+    exit
+}
+
+try ()
+{
+    say "$@" >&2
+    echo "Try '$PKG --help' for more information." >&2
+    exit "$RETURN"
+}
 
 is_diff ()
 {
@@ -773,29 +833,32 @@ run_batch_file ()
 
 check_dependencies ()
 {
-     DATE="$(which date)"  || die  "date: command not found"
-     GREP="$(which grep)"  || die  "grep: command not found"
-      GPG="$(which gpg)"   || die   "gpg: command not found"
-    MKDIR="$(which mkdir)" || die "mkdir: command not found"
-       RM="$(which rm)"    || die    "rm: command not found"
-      SED="$(which sed)"   || die   "sed: command not found"
+    is_not_empty "${GPG:-}" || die   "gpg: command not found"
+     DATE="$(which date)"   || die  "date: command not found"
+     GREP="$(which grep)"   || die  "grep: command not found"
+    MKDIR="$(which mkdir)"  || die "mkdir: command not found"
+       RM="$(which rm)"     || die    "rm: command not found"
+      SED="$(which sed)"    || die   "sed: command not found"
 }
 
 main ()
 {
+    GPG="$(which gpg)"      || GPG=
+    is_empty "${HELP:-}"    || show_help
+    is_empty "${VERSION:-}" || show_version
+
     check_dependencies
-    TMP_GNUPGHOME="${TMP_GNUPGHOME:-"$(mktempdir)"}" || die "$TMP_GNUPGHOME"
-    is_empty "${GPG_OPTIONS:-}" || is_file_readable "$GPG_OPTIONS" || die
+    is_empty "${GPG_OPTIONS:-}" || is_file_readable "$GPG_OPTIONS" || try
     is_empty  "${GNUPGHOME:-}"  || {
-        is_dir "$GNUPGHOME" || die 2 "no such directory: -- '$GNUPGHOME'"
+        is_dir "$GNUPGHOME" || try 2 "no such directory: -- '$GNUPGHOME'"
         export   GNUPGHOME
     }
     is_empty "${GPG_EDIT_KEY_ID:-}" ||
         >/dev/null 2>&1 run_gpg --list-keys "$GPG_EDIT_KEY_ID" ||
-            die "key not found: -- '$GPG_EDIT_KEY_ID'"
+            try "key not found: -- '$GPG_EDIT_KEY_ID'"
 
-    is_diff $# 0 || die 2 "no batch file specified"
-
+    is_diff $# 0 || try 2 "no batch file specified"
+    TMP_GNUPGHOME="${TMP_GNUPGHOME:-"$(mktempdir)"}" || die "$TMP_GNUPGHOME"
     for BATCH_FILE in "$@"
     do
         is_file_readable "${BATCH_FILE:-}" || {
@@ -823,14 +886,14 @@ done
 arg_is_not_empty ()
 {
     is_not_empty "${2:-}"  ||
-        die 2 "$PREFIX: missing argument for option \"$1\""
+        try 2 "$PREFIX: missing argument for option \"$1\""
 }
 
 invalid_option ()
 {
     is_equal "${#1}" 2 &&
-    die 2 "$PREFIX: invalid option -- '${1#?}'" ||
-    die 2 "$PREFIX: unrecognized option '$1'"
+    try 2 "$PREFIX: invalid option -- '${1#?}'" ||
+    try 2 "$PREFIX: unrecognized option '$1'"
 }
 
 ARG_NUM=0
@@ -839,6 +902,18 @@ do
     ARG_NUM=$((ARG_NUM + 1))
     PREFIX="${ARG_NUM}th argument"
     case "${1:-}" in
+        -[?h] | --help)
+            HELP="$1"
+        ;;
+        -[?h]*)
+            HELP="${1%"${1#??}"}"
+            ARG="-${1#??}"
+            shift
+            set -- '' "$ARG" "$@"
+        ;;
+        --version)
+            VERSION="$1"
+        ;;
         --edit-key)
             arg_is_not_empty "$1" "${2:-}"
             ARG_NUM="$((ARG_NUM + 1))" GPG_EDIT_KEY_ID="$2"
