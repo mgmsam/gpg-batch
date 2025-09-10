@@ -329,10 +329,40 @@ $SUBKEY
 SUBKEY
 }
 
+get_key_type ()
+{
+    case "${1:-}" in
+        1 | [rR][sS][aA])
+            echo RSA
+        ;;
+        16 | ELG)
+            echo ELG
+        ;;
+        ELG-E)
+            echo ELG-E
+        ;;
+        17 | [dD][sS][aA])
+            echo DSA
+        ;;
+        18 | [eE][cC][cC])
+            echo ECC
+        ;;
+        [eE][cC][dD][hH])
+            echo ECDH
+        ;;
+        19 | [eE][cC][dD][sS][aA])
+            echo ECDSA
+        ;;
+        22 | [eE][dD][dD][sS][aA] | [dD][eE][fF][aA][uU][lL][tT])
+            echo EDDSA
+        ;;
+    esac
+}
+
 build_batch ()
 {
     case "${SUBKEY_TYPE:-}" in
-        1 | [rR][sS][aA])
+        RSA)
             case "${SUBKEY_USAGE:-}" in
                 "" | "auth encrypt sign" | "auth cert encrypt sign")
                     BATCH="8${LF}A${LF}Q"
@@ -360,16 +390,11 @@ build_batch ()
                 ;;
             esac
             BATCH="$BATCH$LF${SUBKEY_LENGTH:-}"
-            SUBKEY_TYPE=RSA
         ;;
-        16 | ELG)
-            BATCH="5$LF${SUBKEY_LENGTH:-}"
-            SUBKEY_TYPE=ELG
-        ;;
-        ELG-E)
+        ELG | ELG-E)
             BATCH="5$LF${SUBKEY_LENGTH:-}"
         ;;
-        17 | [dD][sS][aA])
+        DSA)
             case "${SUBKEY_USAGE:-}" in
                 "" | "auth cert sign" | "auth cert" | "auth sign")
                     BATCH="7${LF}A${LF}Q"
@@ -385,34 +410,31 @@ build_batch ()
                 ;;
             esac
             BATCH="$BATCH$LF${SUBKEY_LENGTH:-}"
-            SUBKEY_TYPE=DSA
         ;;
-        18 | [eE][cC][cC] | [eE][cC][dD][hH])
+        ECC | ECDH)
             case "$SUBKEY_CURVE" in
                 0)
                     SUBKEY_CURVE=1
                 ;;
             esac
             BATCH="12$LF$SUBKEY_CURVE"
-            SUBKEY_TYPE=ECC
         ;;
-        19 | 22 | [eE][cCdD][dD][sS][aA] | [dD][eE][fF][aA][uU][lL][tT])
+        ECDSA | EDDSA)
             case "${SUBKEY_USAGE:-}" in
-                "" | "auth sign" | "auth cert sign")
+                "" | cert)
+                    BATCH="11${LF}S${LF}Q"
+                ;;
+                "auth sign" | "auth cert sign")
                     BATCH="11${LF}A${LF}Q"
                 ;;
                 auth | "auth cert")
                     BATCH="11${LF}S${LF}A${LF}Q"
-                ;;
-                cert)
-                    BATCH="11${LF}S${LF}Q"
                 ;;
                 sign | "cert sign")
                     BATCH=10
                 ;;
             esac
             BATCH="$BATCH$LF$SUBKEY_CURVE"
-            SUBKEY_TYPE=ECC
         ;;
     esac
 
@@ -428,7 +450,10 @@ gpg_edit_key ()
         gpg_run_batch --command-fd=0 --edit-key "$KEY_ID"
     else
         gpg_run_batch --command-fd=0 --pinentry-mode=loopback --edit-key "$KEY_ID"
-    fi
+    fi || {
+        GPG_EXIT=$?
+        return "$GPG_EXIT"
+    }
 }
 
 gpg_generate_subkey ()
@@ -436,18 +461,24 @@ gpg_generate_subkey ()
     while is_not_empty "${SUBKEY:-}"
     do
         get_subkey
+        SUBKEY_TYPE="$(get_key_type "$SUBKEY_TYPE")"
         build_batch
-        is_empty "${NO_TTY:-}" &&
-        say    "generating a subkey [$SUBKEY_TYPE]: ..." ||
-        say -n "generating a subkey [$SUBKEY_TYPE]:"
-        gpg_edit_key || {
-            GPG_EXIT=$?
-            echo " failed"
-            return "$GPG_EXIT"
-        }
-        is_empty "${NO_TTY:-}" &&
-        say    "generating a subkey [$SUBKEY_TYPE]: success" ||
-        echo " success"
+        if is_empty "${NO_TTY:-}"
+        then
+            say "generating a subkey [$SUBKEY_TYPE]: ..."
+            gpg_edit_key &&
+            say "generating a subkey [$SUBKEY_TYPE]: success" || {
+                say -n "generating a subkey [$SUBKEY_TYPE]: failed"
+                return
+            }
+        else
+            say -n "generating a subkey [$SUBKEY_TYPE]:"
+            gpg_edit_key &&
+            echo " success" || {
+                echo " failed"
+                return
+            }
+        fi
     done
 }
 
@@ -613,6 +644,7 @@ run_batch ()
             gpg_update_trustdb
             KEY_TYPE="${KEY_TYPE#*:}"
             KEY_TYPE="${KEY_TYPE#"${KEY_TYPE%%[![:blank:]]*}"}"
+            KEY_TYPE="$(get_key_type "$KEY_TYPE")"
             say -n "generating a key [$KEY_TYPE]:"
             STATUS="$(2>&1 gpg_generate_key)" && {
                 KEY_ID="${STATUS##*KEY_CREATED}"
