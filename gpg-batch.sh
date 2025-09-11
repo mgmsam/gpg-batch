@@ -34,6 +34,7 @@ Commands:
       --edit-key <key-ID>   edit a key
 
 Options:
+      --force               After detection of errors, continue execution.
       --homedir dir         Set the name of the home directory to dir. If this
                             option is not used, the home directory defaults to
                             ‘~/.gnupg’. It is only recognized when given on the
@@ -41,20 +42,19 @@ Options:
                             stated through the environment variable ‘GNUPGHOME’
                             or (on Windows systems) by means of the Registry
                             entry HKCU\Software\GNU\GnuPG:HomeDir.
-
-      --version             display version information and exit
-  -h, -?, --help            display this help and exit
+      --version             Display version information and exit.
+  -h, -?, --help            Display this help and exit.
 
 Options controlling the diagnostic output:
-  -v, --verbose             verbose
-  -q, --quiet               be somewhat more quiet
-      --options FILE        read options from FILE
+  -v, --verbose             Verbose.
+  -q, --quiet               Be somewhat more quiet.
+      --options FILE        Read options from FILE.
       --no-tty              Make sure that the TTY (terminal) is never used for
                             any output. This option is needed in some cases
                             because GnuPG sometimes prints warnings to the TTY
                             even if --batch is used.
 
-An argument of '--' disables further option processing
+An argument of '--' disables further option processing.
 
 Report bugs to: bug-$PKG@mgmsam.pro
 $PKG home page: <https://www.mgmsam.pro/shell-script/$PKG/>"
@@ -63,7 +63,7 @@ $PKG home page: <https://www.mgmsam.pro/shell-script/$PKG/>"
 
 show_version ()
 {
-    echo "${0##*/} 0.0.1 - (C) 11.09.2025
+    echo "${0##*/} 0.0.2 - (C) 11.09.2025
 
 Written by Mironov A Semyon
 Site       www.mgmsam.pro
@@ -528,7 +528,7 @@ gpg_generate_subkey ()
         do
             get_subkey_settings
             build_subkey_generation_command
-            gpg_edit_key || return 0
+            gpg_edit_key || return
         done
     } || {
         while is_not_empty "${SUBKEY:-}"
@@ -539,7 +539,7 @@ gpg_generate_subkey ()
             gpg_edit_key &&
             say "generating the GPG subkey [$SUBKEY_TYPE]: success" || {
                 say "generating the GPG subkey [$SUBKEY_TYPE]: failed"
-                return
+                return "$GPG_RETURN_CODE"
             }
         done
     }
@@ -760,7 +760,10 @@ generate_key ()
             KEY_TYPE="${KEY_TYPE#"${KEY_TYPE%%[![:blank:]]*}"}"
             KEY_TYPE="$(get_key_type "$KEY_TYPE")"
             is_empty "${VERBOSE:-}" || say "generating the GPG key [$KEY_TYPE]: ..."
-            STATUS="$(gpg_generate_key)" && {
+            STATUS="$(gpg_generate_key)" || {
+                GPG_RETURN_CODE=$?
+                false
+            } && {
                 extend_canvas
                 KEY_ID="${STATUS##*KEY_CREATED}"
                 KEY_ID="${KEY_ID##*[[:blank:]]}"
@@ -772,13 +775,13 @@ generate_key ()
     case "${SUBKEY:-}" in
         ?*)
             gpg_update_trustdb
-            gpg_generate_subkey
+            gpg_generate_subkey || is_not_empty "${FORCE:-}" || return
         ;;
     esac || {
-        GPG_RETURN_CODE=$?
-        extend_canvas
         is_empty "${VERBOSE:-}" &&  echo "${STATUS:-}" ||
                                     echo " failed${STATUS:+"$LF$STATUS"}"
+        is_not_empty "${FORCE:-}" || return
+        extend_canvas
     }
     set_key_variables
 }
@@ -812,7 +815,7 @@ run_batch_file ()
                 KEYWORD=
             ;;
             %commit)
-                generate_key
+                generate_key || return
                 KEYWORD=
             ;;
             %no-protection)
@@ -820,7 +823,7 @@ run_batch_file ()
                 KEYWORD=
             ;;
             Key-Type:*)
-                is_empty "${KEY_TYPE:-}" && KEY_TYPE="$KEYWORD" || generate_key
+                is_empty "${KEY_TYPE:-}" && KEY_TYPE="$KEYWORD" || generate_key || return
             ;;
             Expire-Date:*)
                 is_empty "${EXPIRE_DATE:-}" &&
@@ -913,9 +916,10 @@ main ()
     do
         can_read_file "${BATCH_FILE:-}" || {
             GPG_RETURN_CODE=$?
-            break
+            is_not_empty "${FORCE:-}" || break
+            continue
         }
-        run_batch_file
+        run_batch_file || break
     done
     gpg_update_trustdb
     is_empty "${KEY_CREATED:+"${VERBOSE:-}"}" || say 0 "key created: $KEY_CREATED"
@@ -963,6 +967,9 @@ do
         ;;
         --version)
             VERSION="$1"
+        ;;
+        --force)
+            FORCE="$1"
         ;;
         --edit-key)
             arg_is_not_empty "$1" "${2:-}"
