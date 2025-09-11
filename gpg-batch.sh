@@ -68,7 +68,7 @@ $PKG home page: <https://www.mgmsam.pro/shell-script/$PKG/>"
 
 show_version ()
 {
-    echo "${0##*/} 0.0.3 - (C) 11.09.2025
+    echo "${0##*/} 0.0.4 - (C) 11.09.2025
 
 Written by Mironov A Semyon
 Site       www.mgmsam.pro
@@ -491,11 +491,11 @@ build_subkey_generation_command ()
         ;;
         ECDSA | EDDSA)
             case "${SUBKEY_USAGE:-}" in
-                "" | cert)
-                    KEY_SETTINGS="11${LF}S${LF}Q"
-                ;;
-                "auth sign" | "auth cert sign")
+                "" | "auth sign" | "auth cert sign")
                     KEY_SETTINGS="11${LF}A${LF}Q"
+                ;;
+                cert)
+                    KEY_SETTINGS="11${LF}S${LF}Q"
                 ;;
                 auth | "auth cert")
                     KEY_SETTINGS="11${LF}S${LF}A${LF}Q"
