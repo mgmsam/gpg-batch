@@ -1,16 +1,25 @@
-%echo Generating an OpenPGP key
+%echo Generating an OpenPGP RSA key
 
 Key-Type: RSA
-Key-Length: 1024
-Key-Usage: sign
+Key-Length: 4096
+Key-Usage: cert
+Expire-Date: 1y
+
+Subkey-Type: RSA
+Subkey-Length: 4096
+Subkey-Usage: auth
+Expire-Date: 1m
+
+Subkey-Type: RSA
+Subkey-Length: 4096
+Subkey-Usage: encrypt
+Expire-Date: 1w
+
+Subkey-Type: RSA
+Subkey-Length: 4096
+Subkey-Usage: sign
+Expire-Date: 1d
 
 Name-Real: Tester
 Name-Email: tester@example.com
 Name-Comment: rsa
-
-Expire-Date: 1d
-%no-protection
-%transient-key
-
-%commit
-%echo done
