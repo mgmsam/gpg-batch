@@ -34,6 +34,11 @@ Commands:
       --edit-key <key-ID>   edit a key
 
 Options:
+      --allow-weak-key-signatures
+                            To avoid a minor risk of collision attacks on third-
+                            party key signatures made using SHA-1, those key
+                            signatures are considered invalid. This options
+                            allows one to override this restriction.
       --force               After detection of errors, continue execution.
       --homedir dir         Set the name of the home directory to dir. If this
                             option is not used, the home directory defaults to
@@ -269,7 +274,7 @@ mktempdir ()
 
 run_gpg ()
 {
-    "$GPG" ${OPTIONS_FILE:+--options "$OPTIONS_FILE"} ${NO_TTY:-} ${VERBOSE:-} ${QUIET:-} "$@"
+    "$GPG" ${OPTIONS_FILE:+--options "$OPTIONS_FILE"} ${GPG_OPTIONS:-} "$@"
 }
 
 gpg_update_trustdb ()
@@ -912,6 +917,7 @@ main ()
 
     is_diff $# 0 || try 2 "no batch file specified"
     TMP_GNUPGHOME="${TMP_GNUPGHOME:-"$(mktempdir)"}" || die "$TMP_GNUPGHOME"
+    GPG_OPTIONS="${ALLOW_WEAK_KEY_SIGNATURES:-} ${NO_TTY:-} ${QUIET:-} ${VERBOSE:-}"
     for BATCH_FILE in "$@"
     do
         can_read_file "${BATCH_FILE:-}" || {
@@ -967,6 +973,9 @@ do
         ;;
         --version)
             VERSION="$1"
+        ;;
+        --allow-weak-key-signatures)
+            ALLOW_WEAK_KEY_SIGNATURES="$1"
         ;;
         --force)
             FORCE="$1"
