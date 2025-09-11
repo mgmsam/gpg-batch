@@ -68,7 +68,7 @@ $PKG home page: <https://www.mgmsam.pro/shell-script/$PKG/>"
 
 show_version ()
 {
-    echo "${0##*/} 0.0.4 - (C) 11.09.2025
+    echo "${0##*/} 0.0.5 - (C) 12.09.2025
 
 Written by Mironov A Semyon
 Site       www.mgmsam.pro
@@ -555,7 +555,7 @@ include_subkey ()
     TMP=
 
     is_empty "${EXPIRE_DATE_IS_ADDITIONAL:+"${SUBKEY_TYPE:-}"}" && {
-        is_not_empty "${GPG_EDIT_KEY_ID:-}" || FIRST_SUBKEY=
+        is_not_empty "${GPG_EDIT_KEY_ID:-}" || SUBKEY=
         while read -r LINE || is_not_empty "${LINE:-}"
         do
             case "${LINE:-}" in
@@ -586,7 +586,7 @@ EOF
     }
 
     MASTER_KEY="${TMP%"$LF"}"
-    SUBKEY="${FIRST_SUBKEY:-}${SUBKEY:+"$LF$SUBKEY"}"
+    SUBKEY="${SUBKEY:-}${ADDITIONAL_SUBKEY:+"$LF$ADDITIONAL_SUBKEY"}"
 }
 
 enable_next_subkey ()
@@ -800,13 +800,82 @@ set_key_variables ()
     SUBKEY_LENGTH=
     SUBKEY_CURVE=
     SUBKEY_USAGE=
-    FIRST_SUBKEY=
-    SUBKEY_IS_ADDITIONAL=
+    ADDITIONAL_SUBKEY=
+    SYNTAX_ERROR=
     EXPIRE_DATE=
     EXPIRE_DATE_IS_ADDITIONAL=
     NAME_REAL=
     NO_PROTECTION=
     PASSPHRASE=
+}
+
+get_keyword_value ()
+{
+    is_empty "${SYNTAX_ERROR:-}" || return 2
+    KEYWORD_VALUE="${KEYWORD#*:}"
+    KEYWORD_VALUE="${KEYWORD_VALUE#"${KEYWORD_VALUE%%[![:blank:]]*}"}"
+    is_not_empty "${KEYWORD_VALUE:-}" || {
+        SYNTAX_ERROR=yes
+        return 2
+    }
+}
+
+check_expiration_date ()
+{
+    case "$KEYWORD_VALUE" in
+        *[dD])
+            KEYWORD_VALUE="${KEYWORD_VALUE%?}d"
+        ;;
+        *[mM])
+            KEYWORD_VALUE="${KEYWORD_VALUE%?}m"
+        ;;
+        *[wW])
+            KEYWORD_VALUE="${KEYWORD_VALUE%?}w"
+        ;;
+        *[yY])
+            KEYWORD_VALUE="${KEYWORD_VALUE%?}y"
+        ;;
+        *[!0-9]*)
+            SYNTAX_ERROR=yes
+            return 2
+        ;;
+        *)
+            KEYWORD_VALUE="${KEYWORD_VALUE}d"
+        ;;
+    esac &&
+    case "${KEYWORD_VALUE%?}" in
+        "" | *[!0-9]*)
+            SYNTAX_ERROR=yes
+            return 2
+        ;;
+    esac
+}
+
+set_expiration_date ()
+{
+    if is_empty "${EXPIRE_DATE:-}"
+    then
+        EXPIRE_DATE="$KEYWORD_VALUE"
+    else
+        if is_not_empty "${ADDITIONAL_SUBKEY:-}"
+        then
+            ADDITIONAL_SUBKEY="$ADDITIONAL_SUBKEY$LF$KEYWORD"
+            KEYWORD="##$KEYWORD"
+        elif is_not_empty "${SUBKEY:-}"
+        then
+            if is_equal "$EXPIRE_DATE" "$KEYWORD_VALUE"
+            then
+                KEYWORD=
+            else
+                EXPIRE_DATE_IS_ADDITIONAL=yes
+                SUBKEY="$SUBKEY$LF$KEYWORD"
+                KEYWORD="#$KEYWORD"
+            fi
+        else
+            SUBKEY="$KEYWORD"
+            KEYWORD="#$KEYWORD"
+        fi
+    fi
 }
 
 run_batch_file ()
@@ -827,30 +896,22 @@ run_batch_file ()
                 NO_PROTECTION=yes
                 KEYWORD=
             ;;
+            Expire-Date:*)
+                get_keyword_value &&
+                check_expiration_date &&
+                  set_expiration_date || :
+            ;;
             Key-Type:*)
                 is_empty "${KEY_TYPE:-}" || generate_key || return
                 KEY_TYPE="$KEYWORD"
-            ;;
-            Expire-Date:*)
-                is_empty "${EXPIRE_DATE:-}" &&
-                EXPIRE_DATE="${KEYWORD##*[[:blank:]]}" || {
-                    EXPIRE_DATE_IS_ADDITIONAL=yes
-                    is_empty "${SUBKEY_IS_ADDITIONAL:-}" && {
-                        FIRST_SUBKEY="${FIRST_SUBKEY:+"$FIRST_SUBKEY$LF"}$KEYWORD"
-                        KEYWORD="#$KEYWORD"
-                    } || {
-                        SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
-                        KEYWORD="##$KEYWORD"
-                    }
-                }
             ;;
             Name-Real:*)
                 NAME_REAL=1
             ;;
             Passphrase:*)
-                PASSPHRASE="${KEYWORD#Passphrase:}"
-                PASSPHRASE="${PASSPHRASE#"${PASSPHRASE%%[![:blank:]]*}"}"
-                is_empty "${PASSPHRASE:-}" || {
+                if get_keyword_value
+                then
+                    PASSPHRASE="$KEYWORD_VALUE"
                     case "${STDIN_PASSPHRASE:-}" in
                         "")
                             KEYWORD="Passphrase: $PASSPHRASE"
@@ -864,25 +925,24 @@ run_batch_file ()
                             PASSPHRASE="$STDIN_PASSPHRASE"
                         ;;
                     esac
-                }
+                fi
             ;;
             Subkey-Type:*)
                 is_empty "${SUBKEY_TYPE:-}" && {
-                    FIRST_SUBKEY="${FIRST_SUBKEY:+"$FIRST_SUBKEY$LF"}$KEYWORD"
+                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
                     SUBKEY_TYPE=1
                     KEYWORD="#$KEYWORD"
                 } || {
-                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
-                    SUBKEY_IS_ADDITIONAL=yes
+                    ADDITIONAL_SUBKEY="${ADDITIONAL_SUBKEY:+"$ADDITIONAL_SUBKEY$LF"}$KEYWORD"
                     KEYWORD="##$KEYWORD"
                 }
             ;;
             Subkey-Curve:* | Subkey-Length:* | Subkey-Usage:*)
-                is_empty "${SUBKEY_IS_ADDITIONAL:-}" && {
-                    FIRST_SUBKEY="${FIRST_SUBKEY:+"$FIRST_SUBKEY$LF"}$KEYWORD"
+                is_empty "${ADDITIONAL_SUBKEY:-}" && {
+                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
                     KEYWORD="#$KEYWORD"
                 } || {
-                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
+                    ADDITIONAL_SUBKEY="$ADDITIONAL_SUBKEY$LF$KEYWORD"
                     KEYWORD="##$KEYWORD"
                 }
             ;;
