@@ -214,6 +214,13 @@ can_read_file ()
     }
 }
 
+trim_string ()
+{
+    STRING="${1#"${1%%[![:space:]]*}"}"
+    STRING="${STRING%"${STRING##*[![:space:]]}"}"
+    echo "$STRING"
+}
+
 which ()
 {
     case "${PATH:-}" in
@@ -528,62 +535,78 @@ gpg_edit_key ()
 
 gpg_generate_subkey ()
 {
-    is_empty "${VERBOSE:-}" && {
-        while is_not_empty "${SUBKEY:-}"
-        do
-            get_subkey_settings
-            build_subkey_generation_command
-            gpg_edit_key || return
-        done
-    } || {
-        while is_not_empty "${SUBKEY:-}"
-        do
-            get_subkey_settings
-            build_subkey_generation_command
-            say "generating the GPG subkey [$SUBKEY_TYPE]: ..."
-            gpg_edit_key &&
-            say "generating the GPG subkey [$SUBKEY_TYPE]: success" || {
-                say "generating the GPG subkey [$SUBKEY_TYPE]: failed"
-                return "$GPG_RETURN_CODE"
-            }
-        done
-    }
+    while is_not_empty "${SUBKEY:-}"
+    do
+        get_subkey_settings
+        build_subkey_generation_command
+
+        is_empty "${VERBOSE:-}" ||
+             say "generating the GPG subkey [$SUBKEY_TYPE]: ..."
+
+        if gpg_edit_key
+        then
+            is_empty "${VERBOSE:-}" ||
+                 say "generating the GPG subkey [$SUBKEY_TYPE]: success"
+        else
+            is_empty "${VERBOSE:-}" ||
+                 say "generating the GPG subkey [$SUBKEY_TYPE]: failed"
+            return "$GPG_RETURN_CODE"
+        fi
+    done
+}
+
+can_generate_subkey_and_master_key_together ()
+{
+    is_empty "${SUBKEY_EXPIRATION_DATE:+"${SUBKEY_TYPE:-}"}"
+}
+
+is_edit_mode ()
+{
+    is_not_empty "${GPG_EDIT_KEY_ID:-}"
 }
 
 include_subkey ()
 {
+    while read -r LINE || is_not_empty "${LINE:-}"
+    do
+        case "${LINE:-}" in
+            \#[!#]*)
+                TMP="${TMP:-}${LINE#?}$LF"
+            ;;
+            *)
+                TMP="${TMP:-}${LINE:-}$LF"
+            ;;
+        esac
+    done <<EOF
+$MASTER_KEY
+EOF
+}
+
+exclude_subkey ()
+{
+    while read -r LINE || is_not_empty "${LINE:-}"
+    do
+        case "${LINE:-}" in
+            \#[!#]*)
+                TMP="${TMP:-}#$LINE$LF"
+            ;;
+            *)
+                TMP="${TMP:-}${LINE:-}$LF"
+            ;;
+        esac
+    done <<EOF
+$MASTER_KEY
+EOF
+}
+
+build_key_chain ()
+{
     TMP=
 
-    is_empty "${EXPIRE_DATE_IS_ADDITIONAL:+"${SUBKEY_TYPE:-}"}" && {
-        is_not_empty "${GPG_EDIT_KEY_ID:-}" || SUBKEY=
-        while read -r LINE || is_not_empty "${LINE:-}"
-        do
-            case "${LINE:-}" in
-                \#[!#]*)
-                    TMP="${TMP:-}${LINE#?}$LF"
-                ;;
-                *)
-                    TMP="${TMP:-}${LINE:-}$LF"
-                ;;
-            esac
-        done <<EOF
-$MASTER_KEY
-EOF
-    } || {
-        while read -r LINE || is_not_empty "${LINE:-}"
-        do
-            case "${LINE:-}" in
-                \#[!#]*)
-                    TMP="${TMP:-}#$LINE$LF"
-                ;;
-                *)
-                    TMP="${TMP:-}${LINE:-}$LF"
-                ;;
-            esac
-        done <<EOF
-$MASTER_KEY
-EOF
-    }
+    can_generate_subkey_and_master_key_together && {
+        is_edit_mode || SUBKEY=
+        include_subkey
+    } || exclude_subkey
 
     MASTER_KEY="${TMP%"$LF"}"
     SUBKEY="${SUBKEY:-}${ADDITIONAL_SUBKEY:+"$LF$ADDITIONAL_SUBKEY"}"
@@ -737,12 +760,13 @@ EOF
 generate_key ()
 {
     MASTER_KEY="${MASTER_KEY%"$LF"}"
-    include_subkey
-    is_empty "${VERBOSE:-}" || say -n "checking the GPG key parameters:"
+    build_key_chain
+    is_empty "${VERBOSE:-}" || say -n "testing the GPG key parameters:"
     TEST_KEY_SETTINGS="$MASTER_KEY$LF%no-protection"
-    if is_not_empty "${GPG_EDIT_KEY_ID:-}"
+    if is_edit_mode
     then
-        is_not_empty "${NAME_REAL:-}" || TEST_KEY_SETTINGS="$TEST_KEY_SETTINGS${LF}Name-Real: $PKG"
+        is_not_empty "${NAME_REAL:-}" ||
+            TEST_KEY_SETTINGS="$TEST_KEY_SETTINGS${LF}Name-Real: $PKG"
         if is_empty "${KEY_TYPE:-}"
         then
             TEST_KEY_SETTINGS="Key-Type: 1$LF$TEST_KEY_SETTINGS"
@@ -761,10 +785,11 @@ generate_key ()
             is_empty "${VERBOSE:-}" || echo " passed"
             set_protection
             gpg_update_trustdb
-            KEY_TYPE="${KEY_TYPE#*:}"
-            KEY_TYPE="${KEY_TYPE#"${KEY_TYPE%%[![:blank:]]*}"}"
-            KEY_TYPE="$(get_key_type "$KEY_TYPE")"
-            is_empty "${VERBOSE:-}" || say "generating the GPG key [$KEY_TYPE]: ..."
+            is_empty "${VERBOSE:-}" || {
+                KEY_TYPE="$(trim_string "${KEY_TYPE#*:}")"
+                KEY_TYPE="$(get_key_type "$KEY_TYPE")"
+                say "generating the GPG key [$KEY_TYPE]: ..."
+            }
             STATUS="$(gpg_generate_key)" || {
                 GPG_RETURN_CODE=$?
                 false
@@ -773,7 +798,8 @@ generate_key ()
                 KEY_ID="${STATUS##*KEY_CREATED}"
                 KEY_ID="${KEY_ID##*[[:blank:]]}"
                 KEY_CREATED="${KEY_CREATED:+"$KEY_CREATED "}$KEY_ID"
-                is_empty "${VERBOSE:-}" || say "generating the GPG key [$KEY_TYPE]: success"
+                is_empty "${VERBOSE:-}" ||
+                    say "generating the GPG key [$KEY_TYPE]: success"
             }
         }
     fi &&
@@ -794,17 +820,17 @@ generate_key ()
 set_key_variables ()
 {
     MASTER_KEY=
+    EXPIRE_DATE=
     KEY_TYPE=
+    NAME_REAL=
     SUBKEY=
     SUBKEY_TYPE=
     SUBKEY_LENGTH=
     SUBKEY_CURVE=
     SUBKEY_USAGE=
+    SUBKEY_EXPIRATION_DATE=
     ADDITIONAL_SUBKEY=
     SYNTAX_ERROR=
-    EXPIRE_DATE=
-    EXPIRE_DATE_IS_ADDITIONAL=
-    NAME_REAL=
     NO_PROTECTION=
     PASSPHRASE=
 }
@@ -812,8 +838,7 @@ set_key_variables ()
 get_keyword_value ()
 {
     is_empty "${SYNTAX_ERROR:-}" || return 2
-    KEYWORD_VALUE="${KEYWORD#*:}"
-    KEYWORD_VALUE="${KEYWORD_VALUE#"${KEYWORD_VALUE%%[![:blank:]]*}"}"
+    KEYWORD_VALUE="$(trim_string "${KEYWORD#*:}")"
     is_not_empty "${KEYWORD_VALUE:-}" || {
         SYNTAX_ERROR=yes
         return 2
@@ -867,7 +892,7 @@ set_expiration_date ()
             then
                 KEYWORD=
             else
-                EXPIRE_DATE_IS_ADDITIONAL=yes
+                SUBKEY_EXPIRATION_DATE=yes
                 SUBKEY="$SUBKEY$LF$KEYWORD"
                 KEYWORD="#$KEYWORD"
             fi
@@ -897,9 +922,10 @@ run_batch_file ()
                 KEYWORD=
             ;;
             Expire-Date:*)
-                get_keyword_value &&
-                check_expiration_date &&
-                  set_expiration_date || :
+                if get_keyword_value && check_expiration_date
+                then
+                    set_expiration_date
+                fi
             ;;
             Key-Type:*)
                 is_empty "${KEY_TYPE:-}" || generate_key || return
@@ -911,10 +937,9 @@ run_batch_file ()
             Passphrase:*)
                 if get_keyword_value
                 then
-                    PASSPHRASE="$KEYWORD_VALUE"
                     case "${STDIN_PASSPHRASE:-}" in
                         "")
-                            KEYWORD="Passphrase: $PASSPHRASE"
+                            PASSPHRASE="$KEYWORD_VALUE"
                         ;;
                         "$LF")
                             KEYWORD=
@@ -933,7 +958,7 @@ run_batch_file ()
                     SUBKEY_TYPE=1
                     KEYWORD="#$KEYWORD"
                 } || {
-                    ADDITIONAL_SUBKEY="${ADDITIONAL_SUBKEY:+"$ADDITIONAL_SUBKEY$LF"}$KEYWORD"
+                    ADDITIONAL_SUBKEY="$ADDITIONAL_SUBKEY$LF$KEYWORD"
                     KEYWORD="##$KEYWORD"
                 }
             ;;
@@ -972,9 +997,12 @@ main ()
         is_dir "$GNUPGHOME" || try 2 "no such directory: -- '$GNUPGHOME'"
         export   GNUPGHOME
     }
-    is_empty "${GPG_EDIT_KEY_ID:-}" ||
+
+    if is_edit_mode
+    then
         >/dev/null 2>&1 run_gpg --list-keys "$GPG_EDIT_KEY_ID" ||
             try "key not found: -- '$GPG_EDIT_KEY_ID'"
+    fi
 
     is_diff $# 0 || try 2 "no batch file specified"
     TMP_GNUPGHOME="${TMP_GNUPGHOME:-"$(mktempdir)"}" || die "$TMP_GNUPGHOME"
