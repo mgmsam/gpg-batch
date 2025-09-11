@@ -68,7 +68,7 @@ $PKG home page: <https://www.mgmsam.pro/shell-script/$PKG/>"
 
 show_version ()
 {
-    echo "${0##*/} 0.0.2 - (C) 11.09.2025
+    echo "${0##*/} 0.0.3 - (C) 11.09.2025
 
 Written by Mironov A Semyon
 Site       www.mgmsam.pro
@@ -828,7 +828,8 @@ run_batch_file ()
                 KEYWORD=
             ;;
             Key-Type:*)
-                is_empty "${KEY_TYPE:-}" && KEY_TYPE="$KEYWORD" || generate_key || return
+                is_empty "${KEY_TYPE:-}" || generate_key || return
+                KEY_TYPE="$KEYWORD"
             ;;
             Expire-Date:*)
                 is_empty "${EXPIRE_DATE:-}" &&
