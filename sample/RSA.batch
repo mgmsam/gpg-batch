@@ -1,11 +1,11 @@
-%echo Generating an OpenPGP RSA key
+%echo Generating an OpenPGP RSA (algo 1) key
 %echo with a password request
 
 #%no-protection
 
 Key-Type:      RSA
 Key-Length:    Default
-Key-Usage:     cert
+Key-Usage:     Cert
 Expire-Date:   1Y
 
 Subkey-Type:   1
