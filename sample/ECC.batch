@@ -1,0 +1,81 @@
+# This file is an example to demonstrate the features gpg-batch.sh.
+# Tested with GnuPG version 2.4.4
+# A detailed description of the parameters can be found
+# on the official website of the GnuPG project:
+#   https://www.gnupg.org/documentation/manuals/gnupg-devel/Unattended-GPG-key-generation.html
+
+# Print text as diagnostic.
+%echo Generating an OpenPGP ECC (algo 22) key
+%echo ECC (Elliptic Curve Cryptography)
+
+# Set ECDSA or 18, EdDSA or 22
+# The register does not matter
+Key-Type:      EdDSA
+
+# Available elliptic curves for the Key-Type: ECDSA/EdDSA
+#   cv25519 ─────────────> Not supported
+#   ed25519 ───────────┐
+#   ed448 ─────────────┴─> The register does not matter (used only when Key-Type: EdDSA)
+#   nistp256 ──────────┐
+#   nistp384 ──────────┤
+#   nistp521 ──────────┤
+#   brainpoolP256r1 ───┼─> The register matters
+#   brainpoolP384r1 ───┤
+#   brainpoolP512r1 ───┤
+#   secp256k1 ─────────┘
+Key-Curve:     ed25519
+
+# Default: sign, cert, auth [SCA] (encrypt - not supported)
+# The register does not matter.
+# The separator can be either a comma or a space.
+Key-Usage:     cert
+
+Name-Real:     ECC
+Name-Comment:  Elliptic Curve Cryptography
+Name-Email:    test@example.com
+
+#    0 = key does not expire
+# <n>  = key expires in n days
+# <n>w = key expires in n weeks
+# <n>m = key expires in n months
+# <n>y = key expires in n years
+# Default: 0
+# The register does not matter.
+Expire-Date:   1m
+
+# Only the first subkey for encryption
+# can be generated based on the ed25519 algorithm.
+# Use the same expiration date for the first subkey
+# and the master key, otherwise, the subkey will be
+# generated interactively and then the cv25519 elliptic
+# curve will be used in place of the ed25519 algorithm.
+Subkey-Type:   ECDH
+
+# Available elliptic curves for the 'Subkey-Type: ECDH':
+#   cv25519 ───────────┐
+#   ed25519 ───────────┼─> The register does not matter
+#   ed448 ─────────────┘
+#   nistp256 ──────────┐
+#   nistp384 ──────────┤
+#   nistp521 ──────────┤
+#   brainpoolP256r1 ───┼─> The register matters
+#   brainpoolP384r1 ───┤
+#   brainpoolP512r1 ───┤
+#   secp256k1 ─────────┘
+Subkey-Curve:  ed25519
+Subkey-Usage:  encrypt
+
+Subkey-Type:   EdDSA
+Subkey-Curve:  ed25519
+Subkey-Usage:  auth
+Expire-Date:   2w
+
+Subkey-Type:   EdDSA
+Subkey-Curve:  ed25519
+Subkey-Usage:  sign
+Expire-Date:   1w
+
+Subkey-Type:   ECDH
+Subkey-Curve:  cv25519
+Subkey-Usage:  encrypt
+Expire-Date:   1d
