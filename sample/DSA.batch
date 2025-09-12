@@ -1,24 +1,53 @@
-%echo Generating an OpenPGP DSA key
+# This file is an example to demonstrate the features gpg-batch.sh.
+# Tested with GnuPG version 2.4.4
+# A detailed description of the parameters can be found
+# on the official website of the GnuPG project:
+#   https://www.gnupg.org/documentation/manuals/gnupg-devel/Unattended-GPG-key-generation.html
 
+# Print text as diagnostic.
+%echo Generating an OpenPGP DSA (algo 17) key
+
+# Set DSA or 17
+# The register does not matter
 Key-Type: Dsa
+
+# DSA keys may be between 768 and 3072 bits long
+# Default: 2048
 Key-Length: 3072
-Key-Usage: Cert
-Expire-Date: 1y
 
-Subkey-Type: Dsa
+# Default: sign, cert, auth [SCA] (encrypt - not supported)
+# The register does not matter.
+# The separator can be either a comma or a space.
+Key-Usage: Cert, Auth Sign
+
+#    0 = key does not expire
+# <n>  = key expires in n days
+# <n>w = key expires in n weeks
+# <n>m = key expires in n months
+# <n>y = key expires in n years
+# Default: 0
+# The register does not matter.
+Expire-Date:   1y
+
+Subkey-Type:   Dsa
 Subkey-Length: 2800
-Subkey-Usage: Auth
-Expire-Date: 1M
 
-Subkey-Type: Dsa
+# Default: sign,auth [SA] (cert,encrypt - not supported)
+Subkey-Usage:  Auth
+Expire-Date:   1M
+
+Subkey-Type:   Dsa
 Subkey-Length: Default
-Subkey-Usage: Sign
-Expire-Date: 1w
+Subkey-Usage:  Sign
+Expire-Date:   1w
 
-Name-Real: Tester
-Name-Email: tester@example.com
-Name-Comment: dsa
+Name-Real:     Tester
+Name-Email:    tester@example.com
+Name-Comment:  gpg-batch.sh: DSA
 
-%echo without a password request
+# Using this option allows the creation of keys without any passphrase protection.
 %no-protection
+
+# If given the keys are created using a faster and a
+# somewhat less secure random number generator
 %transient-key

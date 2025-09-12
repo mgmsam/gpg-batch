@@ -1,23 +1,42 @@
-%echo Generating an OpenPGP ELG (ELG-E) subkey
+# This file is an example to demonstrate the features gpg-batch.sh.
+# Tested with GnuPG version 2.4.4
+# A detailed description of the parameters can be found
+# on the official website of the GnuPG project:
+#   https://www.gnupg.org/documentation/manuals/gnupg-devel/Unattended-GPG-key-generation.html
 
-Key-Type: EdDSA
-Key-Curve: ed25519
-Key-Usage: sign
-Expire-Date: 1m
+# Print text as diagnostic.
+%echo Generating an OpenPGP ELG (algo 16) subkey
+%echo To apply this file, run the following command:
+%echo ./gpg-batch.sh --edit-key <key-ID> sample/ELG.batch
 
-Subkey-Type: ELG
+# Set ELG or 16
+# The register matters
+Subkey-Type:   ELG
+
+# ELG keys may be between 1024 and 4096 bits long
+# Default: 3072
 Subkey-Length: 1024
-Subkey-Usage: Encrypt
-Expire-Date: 1w
 
-Subkey-Type: ELG-E
+# Default: encrypt [E] (sign,cert,auth - not supported)
+Subkey-Usage:  Encrypt
+
+#    0 = key does not expire
+# <n>  = key expires in n days
+# <n>w = key expires in n weeks
+# <n>m = key expires in n months
+# <n>y = key expires in n years
+# Default: 0
+# The register does not matter.
+Expire-Date:   1w
+
+Subkey-Type:   ELG
 Subkey-Length: 2048
-Expire-Date: 1d
+Subkey-Usage:  Encrypt
+Expire-Date:   1d
 
-Name-Real: Tester
-Name-Email: tester@example.com
-Name-Comment: ELG
-
-%echo without a password request
+# Using this option allows the creation of keys without any passphrase protection.
 %no-protection
+
+# If given the keys are created using a faster and a
+# somewhat less secure random number generator
 %transient-key
