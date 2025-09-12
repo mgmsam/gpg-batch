@@ -1,0 +1,88 @@
+# This file is an example to demonstrate the features gpg-batch.sh.
+# Tested with GnuPG version 2.4.4
+# A detailed description of the parameters can be found
+# on the official website of the GnuPG project:
+#   https://www.gnupg.org/documentation/manuals/gnupg-devel/Unattended-GPG-key-generation.html
+
+# Print text as diagnostic.
+%echo Generating an OpenPGP ECDH (algo 18) subkey
+%echo To apply this file, run the following command:
+%echo ./gpg-batch.sh --edit-key <key-ID> sample/ECDH.batch
+
+# Set ECDH or 18
+# The register does not matter
+Subkey-Type:   ECDH
+
+# Available elliptic curves:
+#   cv25519 ───────────┐
+#   ed25519 ───────────┼─> The register does not matter
+#   ed448 ─────────────┘
+#   nistp256 ──────────┐
+#   nistp384 ──────────┤
+#   nistp521 ──────────┤
+#   brainpoolP256r1 ───┼─> The register matters
+#   brainpoolP384r1 ───┤
+#   brainpoolP512r1 ───┤
+#   secp256k1 ─────────┘
+Subkey-Curve:  cv25519
+
+# Default: encrypt [E] (sign,cert,auth - not supported)
+Subkey-Usage:  encrypt
+
+#    0 = key does not expire
+# <n>  = key expires in n days
+# <n>w = key expires in n weeks
+# <n>m = key expires in n months
+# <n>y = key expires in n years
+# Default: 0
+# The register does not matter.
+Expire-Date:   1d
+
+Subkey-Type:   ECDH
+
+# To generate the key used for encryption, the GnuPG interface
+# interactively uses the elliptic curve cv25519.
+# To use the ed25519 elliptic curve to generate an encryption key,
+# specify it as the first key when generating the master key.
+# Here cv25519 will be used in place of ed25519.
+Subkey-Curve:  ed25519
+Expire-Date:   2d
+
+Subkey-Type:   ECDH
+Subkey-Curve:  ed448
+Expire-Date:   3d
+
+Subkey-Type:   ECDH
+Subkey-Curve:  nistp256
+Expire-Date:   4d
+
+Subkey-Type:   ECDH
+Subkey-Curve:  nistp384
+Expire-Date:   5d
+
+Subkey-Type:   ECDH
+Subkey-Curve:  nistp521
+Expire-Date:   6d
+
+Subkey-Type:   ECDH
+Subkey-Curve:  brainpoolP256r1
+Expire-Date:   1w
+
+Subkey-Type:   ECDH
+Subkey-Curve:  brainpoolP384r1
+Expire-Date:   2w
+
+Subkey-Type:   ECDH
+Subkey-Curve:  brainpoolP512r1
+Expire-Date:   1m
+
+Subkey-Type:   ECDH
+Subkey-Curve:  secp256k1
+Expire-Date:   2m
+
+# Using this option allows the creation of keys without any passphrase protection.
+%no-protection
+
+# If given the keys are created using a faster and a
+# somewhat less secure random number generator
+%transient-key
