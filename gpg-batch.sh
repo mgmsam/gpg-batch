@@ -68,7 +68,7 @@ $PKG home page: <https://www.mgmsam.pro/shell-script/$PKG/>"
 
 show_version ()
 {
-    echo "${0##*/} 0.0.6 - (C) 12.09.2025
+    echo "${0##*/} 0.0.7 - (C) 12.09.2025
 
 Written by Mironov A Semyon
 Site       www.mgmsam.pro
@@ -348,16 +348,16 @@ set_subkey_usage ()
     while is_diff $# 0
     do
         case "$1" in
-            auth)
+            [aA][uU][tT][hH])
                 AUTH=auth
                 ;;
-            cert)
+            [cC][eE][rR][tT])
                 CERT=cert
                 ;;
-            encrypt)
+            [eE][nN][cC][rR][yY][pP][tT])
                 ENCRYPT=encrypt
                 ;;
-            sign)
+            [sS][iI][gG][nN])
                 SIGN=sign
         esac
         shift
