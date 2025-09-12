@@ -1,0 +1,23 @@
+%echo Generating an OpenPGP DSA key
+
+Key-Type: DSA
+Key-Length: 3072
+Key-Usage: cert
+Expire-Date: 1y
+
+Subkey-Type: DSA
+Subkey-Length: 2800
+Subkey-Usage: auth
+Expire-Date: 1m
+
+Subkey-Type: DSA
+Subkey-Length: default
+Subkey-Usage: sign
+Expire-Date: 1w
+
+Name-Real: Tester
+Name-Email: tester@example.com
+Name-Comment: dsa
+
+%no-protection
+%transient-key
