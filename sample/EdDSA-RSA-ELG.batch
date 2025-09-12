@@ -1,0 +1,48 @@
+# This file is an example to demonstrate the features gpg-batch.sh.
+# Tested with GnuPG version 2.4.4
+# A detailed description of the parameters can be found
+# on the official website of the GnuPG project:
+#   https://www.gnupg.org/documentation/manuals/gnupg-devel/Unattended-GPG-key-generation.html
+
+%echo Generating an OpenPGP EdDSA (algo 22) key
+%echo EdDSA (Edwards-curve Digital Signature Algorithm)
+
+Key-Type:      EdDSA
+Key-Curve:     ed25519
+Key-Usage:     cert
+
+Name-Real:     EdDSA
+Name-Comment:  Edwards-curve Digital Signature Algorithm
+Name-Email:    test@example.com
+
+Subkey-Type:   ECDH
+Subkey-Curve:  ed25519
+Subkey-Usage:  encrypt
+Expire-Date:   1m
+
+Subkey-Type:   ELG
+Subkey-Length: 4096
+Subkey-Usage:  Encrypt
+Expire-Date:   1w
+
+%commit
+
+%echo Generating an OpenPGP RSA (algo 1) key
+%echo RSA (Rivest, Shamir, Adleman)
+
+Key-Type:      RSA
+Key-Length:    Default
+Key-Usage:     Auth Cert Sign
+Expire-Date:   1y
+
+Name-Real:     RSA
+Name-Comment:  Rivest, Shamir, Adleman
+Name-Email:    test@example.com
+
+Subkey-Type:   ELG
+Subkey-Length: 4096
+Subkey-Usage:  Encrypt
+Expire-Date:   1w
+
+%commit
+%echo Done
