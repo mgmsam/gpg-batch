@@ -1,0 +1,29 @@
+%echo Generating an OpenPGP EdDSA (algo 22) key
+%echo with a password request
+
+Key-Type:     EdDSA
+Key-Curve:    ed25519
+
+Subkey-Type:  EdDSA
+Subkey-Curve: ed448
+Subkey-Usage: Auth
+
+Subkey-Type:  EdDSA
+Subkey-Curve: nistp521
+Subkey-Usage: Sign
+
+Subkey-Type:  EdDSA
+Subkey-Curve: brainpoolP512r1
+Subkey-Usage: Auth
+
+Subkey-Type:  EdDSA
+Subkey-Curve: secp256k1
+Subkey-Usage: Sign
+
+Expire-Date:  1y
+
+Name-Real:    Tester
+Name-Email:   tester@example.com
+Name-Comment: EdDSA
+
+#%no-protection
