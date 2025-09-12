@@ -1,21 +1,22 @@
-%echo Generating an OpenPGP ELG (ELG-E) key
+%echo Generating an OpenPGP ELG (ELG-E) subkey
 
-Key-Type: EDDSA
+Key-Type: EdDSA
 Key-Curve: ed25519
 Key-Usage: sign
+Expire-Date: 1m
 
 Subkey-Type: ELG
 Subkey-Length: 1024
 Subkey-Usage: Encrypt
+Expire-Date: 1w
 
 Subkey-Type: ELG-E
 Subkey-Length: 2048
+Expire-Date: 1d
 
 Name-Real: Tester
 Name-Email: tester@example.com
-Name-Comment: ecc
-
-Expire-Date: 1d
+Name-Comment: ELG
 
 %echo without a password request
 %no-protection
