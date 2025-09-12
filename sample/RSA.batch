@@ -1,23 +1,24 @@
 %echo Generating an OpenPGP RSA key
+%echo with a password request
 
 Key-Type: RSA
-Key-Length: 4096
+Key-Length: Default
 Key-Usage: cert
-Expire-Date: 1y
+Expire-Date: 1Y
 
-Subkey-Type: RSA
+Subkey-Type: 1
 Subkey-Length: 4096
-Subkey-Usage: auth
+Subkey-Usage: Auth
 Expire-Date: 1m
 
 Subkey-Type: RSA
 Subkey-Length: 4096
-Subkey-Usage: encrypt
+Subkey-Usage: Encrypt
 Expire-Date: 1w
 
 Subkey-Type: RSA
 Subkey-Length: 4096
-Subkey-Usage: sign
+Subkey-Usage: Sign
 Expire-Date: 1d
 
 Name-Real: Tester
