@@ -68,7 +68,7 @@ $PKG home page: <https://www.mgmsam.pro/shell-script/$PKG/>"
 
 show_version ()
 {
-    echo "${0##*/} 0.0.5 - (C) 12.09.2025
+    echo "${0##*/} 0.0.6 - (C) 12.09.2025
 
 Written by Mironov A Semyon
 Site       www.mgmsam.pro
@@ -396,6 +396,11 @@ get_key_type ()
     esac
 }
 
+get_keyword_value ()
+{
+    KEYWORD_VALUE="$(trim_string "${1#*:}")"
+}
+
 get_subkey_settings ()
 {
     SUBKEY_TYPE=
@@ -406,25 +411,26 @@ get_subkey_settings ()
     do
         case "${LINE:-}" in
             Expire-Date:*)
-                EXPIRE_DATE="${LINE#Expire-Date:}"
-                EXPIRE_DATE="${EXPIRE_DATE#"${EXPIRE_DATE%%[![:blank:]]*}"}"
+                get_keyword_value "$LINE"
+                EXPIRE_DATE="$KEYWORD_VALUE"
             ;;
             Subkey-Type:*)
                 is_empty "${SUBKEY_TYPE:-}" || break
-                SUBKEY_TYPE="${LINE#Subkey-Type:}"
-                SUBKEY_TYPE="${SUBKEY_TYPE#"${SUBKEY_TYPE%%[![:blank:]]*}"}"
+                get_keyword_value "$LINE"
+                SUBKEY_TYPE="$KEYWORD_VALUE"
             ;;
             Subkey-Length:*)
-                SUBKEY_LENGTH="${LINE#Subkey-Length:}"
-                SUBKEY_LENGTH="${SUBKEY_LENGTH#"${SUBKEY_LENGTH%%[![:blank:]]*}"}"
+                get_keyword_value "$LINE"
+                SUBKEY_LENGTH="$KEYWORD_VALUE"
             ;;
             Subkey-Curve:*)
-                SUBKEY_CURVE="${LINE#Subkey-Curve:}"
-                SUBKEY_CURVE="${SUBKEY_CURVE#"${SUBKEY_CURVE%%[![:blank:]]*}"}"
+                get_keyword_value "$LINE"
+                SUBKEY_CURVE="$KEYWORD_VALUE"
                 set_subkey_curve
             ;;
             Subkey-Usage:*)
-                SUBKEY_USAGE="${LINE#Subkey-Usage:}"
+                get_keyword_value "$LINE"
+                SUBKEY_USAGE="$KEYWORD_VALUE"
                 set_subkey_usage
             ;;
         esac
@@ -466,9 +472,27 @@ build_subkey_generation_command ()
                     KEY_SETTINGS=4
                 ;;
             esac
+            case "${SUBKEY_LENGTH:-}" in
+                "" | *[!0-9]*)
+                    SUBKEY_LENGTH=
+                ;;
+                *)
+                    test "$SUBKEY_LENGTH" -ge 1024 &&
+                    test "$SUBKEY_LENGTH" -le 4096 || SUBKEY_LENGTH=
+                ;;
+            esac
             KEY_SETTINGS="$KEY_SETTINGS$LF${SUBKEY_LENGTH:-}"
         ;;
         ELG | ELG-E)
+            case "${SUBKEY_LENGTH:-}" in
+                "" | *[!0-9]*)
+                    SUBKEY_LENGTH=
+                ;;
+                *)
+                    test "$SUBKEY_LENGTH" -ge 1024 &&
+                    test "$SUBKEY_LENGTH" -le 4096 || SUBKEY_LENGTH=
+                ;;
+            esac
             KEY_SETTINGS="5$LF${SUBKEY_LENGTH:-}"
         ;;
         DSA)
@@ -484,6 +508,15 @@ build_subkey_generation_command ()
                 ;;
                 sign)
                     KEY_SETTINGS=3
+                ;;
+            esac
+            case "${SUBKEY_LENGTH:-}" in
+                "" | *[!0-9]*)
+                    SUBKEY_LENGTH=
+                ;;
+                *)
+                    test "$SUBKEY_LENGTH" -ge 768  &&
+                    test "$SUBKEY_LENGTH" -le 3072 || SUBKEY_LENGTH=
                 ;;
             esac
             KEY_SETTINGS="$KEY_SETTINGS$LF${SUBKEY_LENGTH:-}"
@@ -835,16 +868,6 @@ set_key_variables ()
     PASSPHRASE=
 }
 
-get_keyword_value ()
-{
-    is_empty "${SYNTAX_ERROR:-}" || return 2
-    KEYWORD_VALUE="$(trim_string "${KEYWORD#*:}")"
-    is_not_empty "${KEYWORD_VALUE:-}" || {
-        SYNTAX_ERROR=yes
-        return 2
-    }
-}
-
 check_expiration_date ()
 {
     case "$KEYWORD_VALUE" in
@@ -922,10 +945,14 @@ run_batch_file ()
                 KEYWORD=
             ;;
             Expire-Date:*)
-                if get_keyword_value && check_expiration_date
-                then
-                    set_expiration_date
-                fi
+                is_not_empty "${SYNTAX_ERROR:-}" || {
+                    get_keyword_value "$KEYWORD"
+                    is_empty "${KEYWORD_VALUE:-}" && SYNTAX_ERROR=yes ||
+                    if check_expiration_date
+                    then
+                        set_expiration_date
+                    fi
+                }
             ;;
             Key-Type:*)
                 is_empty "${KEY_TYPE:-}" || generate_key || return
@@ -935,8 +962,9 @@ run_batch_file ()
                 NAME_REAL=1
             ;;
             Passphrase:*)
-                if get_keyword_value
-                then
+                is_not_empty "${SYNTAX_ERROR:-}" || {
+                    get_keyword_value "$KEYWORD"
+                    is_empty "${KEYWORD_VALUE:-}" && SYNTAX_ERROR=yes ||
                     case "${STDIN_PASSPHRASE:-}" in
                         "")
                             PASSPHRASE="$KEYWORD_VALUE"
@@ -950,7 +978,7 @@ run_batch_file ()
                             PASSPHRASE="$STDIN_PASSPHRASE"
                         ;;
                     esac
-                fi
+                }
             ;;
             Subkey-Type:*)
                 is_empty "${SUBKEY_TYPE:-}" && {
