@@ -9,7 +9,7 @@
 
 # Set RSA or 1
 # The register does not matter
-Key-Type: RSA
+Key-Type:      RSA
 
 # RSA keys may be between 1024 and 4096 bits long
 # Default: 3072

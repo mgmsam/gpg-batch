@@ -9,7 +9,7 @@
 
 # Set EdDSA or 22
 # The register does not matter
-Key-Type:     EdDSA
+Key-Type:      EdDSA
 
 # Available elliptic curves:
 #   cv25519 ─────────────> Not supported
@@ -22,7 +22,7 @@ Key-Type:     EdDSA
 #   brainpoolP384r1 ───┤
 #   brainpoolP512r1 ───┤
 #   secp256k1 ─────────┘
-Key-Curve:    ed25519
+Key-Curve:     ed25519
 
 # Default: sign, cert, auth [SCA] (encrypt - not supported)
 # The register does not matter.

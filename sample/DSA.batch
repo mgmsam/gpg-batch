@@ -9,16 +9,16 @@
 
 # Set DSA or 17
 # The register does not matter
-Key-Type: Dsa
+Key-Type:      Dsa
 
 # DSA keys may be between 768 and 3072 bits long
 # Default: 2048
-Key-Length: 3072
+Key-Length:    3072
 
 # Default: sign, cert, auth [SCA] (encrypt - not supported)
 # The register does not matter.
 # The separator can be either a comma or a space.
-Key-Usage: Cert, Auth Sign
+Key-Usage:     Cert, Auth Sign
 
 #    0 = key does not expire
 # <n>  = key expires in n days

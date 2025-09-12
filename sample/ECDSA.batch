@@ -9,7 +9,7 @@
 
 # Set ECDSA or 19
 # The register does not matter
-Key-Type:     ECDSA
+Key-Type:      ECDSA
 
 # Available elliptic curves for the Key-Curve:
 #   cv25519 ───────────┐
@@ -22,12 +22,12 @@ Key-Type:     ECDSA
 #   brainpoolP384r1 ───┤
 #   brainpoolP512r1 ───┤
 #   secp256k1 ─────────┘
-Key-Curve:    nistp256
+Key-Curve:     nistp256
 
 # Default: sign, cert, auth [SCA] (encrypt - not supported)
 # The register does not matter.
 # The separator can be either a comma or a space.
-Key-Usage:    sign, auth
+Key-Usage:     sign, auth
 
 #    0 = key does not expire
 # <n>  = key expires in n days
