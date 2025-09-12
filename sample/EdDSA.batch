@@ -6,12 +6,13 @@
 
 # Print text as diagnostic.
 %echo Generating an OpenPGP EdDSA (algo 22) key
+%echo EdDSA (Edwards-curve Digital Signature Algorithm)
 
 # Set EdDSA or 22
 # The register does not matter
 Key-Type:      EdDSA
 
-# Available elliptic curves:
+# Available elliptic curves for the Key-Type: EdDSA
 #   cv25519 ─────────────> Not supported
 #   ed25519 ───────────┐
 #   ed448 ─────────────┴─> The register does not matter
@@ -28,6 +29,10 @@ Key-Curve:     ed25519
 # The register does not matter.
 # The separator can be either a comma or a space.
 Key-Usage:     Auth,Sign
+
+Name-Real:     EdDSA
+Name-Comment:  Edwards-curve Digital Signature Algorithm
+Name-Email:    test@example.com
 
 #    0 = key does not expire
 # <n>  = key expires in n days
@@ -82,14 +87,3 @@ Expire-Date:   1m
 Subkey-Type:   EdDSA
 Subkey-Curve:  secp256k1
 Subkey-Usage:  auth Cert sign
-
-Name-Real:     Tester
-Name-Email:    tester@example.com
-Name-Comment:  gpg-batch.sh: EdDSA
-
-# Using this option allows the creation of keys without any passphrase protection.
-%no-protection
-
-# If given the keys are created using a faster and a
-# somewhat less secure random number generator
-%transient-key

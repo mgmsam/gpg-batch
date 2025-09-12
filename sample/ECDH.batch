@@ -6,6 +6,8 @@
 
 # Print text as diagnostic.
 %echo Generating an OpenPGP ECDH (algo 18) subkey
+%echo ECDH (Elliptic Curve Diffie-Hellman)
+
 %echo To apply this file, run the following command:
 %echo ./gpg-batch.sh --edit-key <key-ID> sample/ECDH.batch
 
@@ -13,7 +15,7 @@
 # The register does not matter
 Subkey-Type:   ECDH
 
-# Available elliptic curves:
+# Available elliptic curves for the Subkey-Type: ECDH
 #   cv25519 ───────────┐
 #   ed25519 ───────────┼─> The register does not matter
 #   ed448 ─────────────┘
@@ -40,10 +42,11 @@ Expire-Date:   1d
 
 Subkey-Type:   ECDH
 
-# To generate the key used for encryption, the GnuPG interface
-# interactively uses the elliptic curve cv25519.
-# To use the ed25519 elliptic curve to generate an encryption key,
-# specify it as the first key when generating the master key.
+# To generate the ECC subkey used for encryption,
+# the GnuPG interface interactively uses the elliptic curve cv25519.
+# To use the ed25519 algorithm to generate a subkey intended for
+# encryption, specify it as the first subkey after the master key
+# when generating a new master key.
 # Here cv25519 will be used in place of ed25519.
 Subkey-Curve:  ed25519
 Expire-Date:   2d
@@ -79,10 +82,3 @@ Expire-Date:   1m
 Subkey-Type:   ECDH
 Subkey-Curve:  secp256k1
 Expire-Date:   2m
-
-# Using this option allows the creation of keys without any passphrase protection.
-%no-protection
-
-# If given the keys are created using a faster and a
-# somewhat less secure random number generator
-%transient-key

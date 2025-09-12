@@ -6,6 +6,7 @@
 
 # Print text as diagnostic.
 %echo Generating an OpenPGP DSA (algo 17) key
+%echo DSA (Digital Signature Algorithm)
 
 # Set DSA or 17
 # The register does not matter
@@ -19,6 +20,10 @@ Key-Length:    3072
 # The register does not matter.
 # The separator can be either a comma or a space.
 Key-Usage:     Cert, Auth Sign
+
+Name-Real:     DSA
+Name-Comment:  Digital Signature Algorithm
+Name-Email:    test@example.com
 
 #    0 = key does not expire
 # <n>  = key expires in n days
@@ -40,14 +45,3 @@ Subkey-Type:   Dsa
 Subkey-Length: Default
 Subkey-Usage:  Sign
 Expire-Date:   1w
-
-Name-Real:     Tester
-Name-Email:    tester@example.com
-Name-Comment:  gpg-batch.sh: DSA
-
-# Using this option allows the creation of keys without any passphrase protection.
-%no-protection
-
-# If given the keys are created using a faster and a
-# somewhat less secure random number generator
-%transient-key

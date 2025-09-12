@@ -6,12 +6,13 @@
 
 # Print text as diagnostic.
 %echo Generating an OpenPGP ECDSA (algo 19) subkey
+%echo ECDSA (Elliptic Curve Digital Signature Algorithm)
 
 # Set ECDSA or 19
 # The register does not matter
 Key-Type:      ECDSA
 
-# Available elliptic curves for the Key-Curve:
+# Available elliptic curves for the Key-Type: ECDSA
 #   cv25519 ───────────┐
 #   ed25519 ───────────┼─> Not supported
 #   ed448 ─────────────┘
@@ -29,6 +30,10 @@ Key-Curve:     nistp256
 # The separator can be either a comma or a space.
 Key-Usage:     sign, auth
 
+Name-Real:     ECDSA
+Name-Comment:  Elliptic Curve Digital Signature Algorithm
+Name-Email:    test@example.com
+
 #    0 = key does not expire
 # <n>  = key expires in n days
 # <n>w = key expires in n weeks
@@ -40,7 +45,7 @@ Expire-Date:   1d
 
 Subkey-Type:   ECDSA
 
-# Available elliptic curves for the Subkey-Curve:
+# Available elliptic curves for the Subkey-Type: ECDSA
 #   cv25519 ─────────────> Not supported
 #   ed25519 ───────────┐
 #   ed448 ─────────────┴─> The register does not matter (with Subkey-Usage: auth, cert*)
@@ -94,10 +99,6 @@ Expire-Date:   1m
 Subkey-Type:   EdDSA
 Subkey-Curve:  secp256k1
 Subkey-Usage:  auth Cert sign
-
-Name-Real:     Tester
-Name-Email:    tester@example.com
-Name-Comment:  gpg-batch.sh: ECDSA
 
 # Using this option allows the creation of keys without any passphrase protection.
 %no-protection

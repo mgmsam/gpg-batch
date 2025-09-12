@@ -6,6 +6,8 @@
 
 # Print text as diagnostic.
 %echo Generating an OpenPGP ELG (algo 16) subkey
+%echo ELG (Taher A. Elgamal)
+
 %echo To apply this file, run the following command:
 %echo ./gpg-batch.sh --edit-key <key-ID> sample/ELG.batch
 
@@ -15,7 +17,7 @@ Subkey-Type:   ELG
 
 # ELG keys may be between 1024 and 4096 bits long
 # Default: 3072
-Subkey-Length: 1024
+Subkey-Length: 4096
 
 # Default: encrypt [E] (sign,cert,auth - not supported)
 Subkey-Usage:  Encrypt
@@ -33,10 +35,3 @@ Subkey-Type:   ELG
 Subkey-Length: 2048
 Subkey-Usage:  Encrypt
 Expire-Date:   1d
-
-# Using this option allows the creation of keys without any passphrase protection.
-%no-protection
-
-# If given the keys are created using a faster and a
-# somewhat less secure random number generator
-%transient-key

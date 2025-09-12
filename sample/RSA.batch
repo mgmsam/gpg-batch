@@ -6,6 +6,7 @@
 
 # Print text as diagnostic.
 %echo Generating an OpenPGP RSA (algo 1) key
+%echo RSA (Rivest, Shamir, Adleman)
 
 # Set RSA or 1
 # The register does not matter
@@ -19,6 +20,10 @@ Key-Length:    Default
 # The register does not matter.
 # The separator can be either a comma or a space.
 Key-Usage:     Cert
+
+Name-Real:     RSA
+Name-Comment:  Rivest, Shamir, Adleman
+Name-Email:    test@example.com
 
 #    0 = key does not expire
 # <n>  = key expires in n days
@@ -45,14 +50,3 @@ Subkey-Type:   RSA
 Subkey-Length: 3072
 Subkey-Usage:  Sign
 Expire-Date:   1d
-
-Name-Real:     Tester
-Name-Email:    tester@example.com
-Name-Comment:  gpg-batch.sh: RSA
-
-# Using this option allows the creation of keys without any passphrase protection.
-%no-protection
-
-# If given the keys are created using a faster and a
-# somewhat less secure random number generator
-%transient-key
