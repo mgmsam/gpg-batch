@@ -68,7 +68,7 @@ $PKG home page: <https://www.mgmsam.pro/shell-script/$PKG/>"
 
 show_version ()
 {
-    echo "${0##*/} 0.0.8 - (C) 12.09.2025
+    echo "${0##*/} 0.0.9 - (C) 12.09.2025
 
 Written by Mironov A Semyon
 Site       www.mgmsam.pro
@@ -304,7 +304,7 @@ gpg_generate_key ()
 set_subkey_curve ()
 {
     case "${SUBKEY_CURVE:-}" in
-        cv25519)
+        [cC][vV]25519)
             SUBKEY_CURVE=0
         ;;
         [eE][dD]25519)
