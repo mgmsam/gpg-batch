@@ -99,10 +99,3 @@ Expire-Date:   1m
 Subkey-Type:   EdDSA
 Subkey-Curve:  secp256k1
 Subkey-Usage:  auth Cert sign
-
-# Using this option allows the creation of keys without any passphrase protection.
-%no-protection
-
-# If given the keys are created using a faster and a
-# somewhat less secure random number generator
-%transient-key
