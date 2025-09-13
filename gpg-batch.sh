@@ -68,7 +68,7 @@ $PKG home page: <https://www.mgmsam.pro/shell-script/$PKG/>"
 
 show_version ()
 {
-    echo "${0##*/} 0.0.9 - (C) 12.09.2025
+    echo "${0##*/} 0.1.0 - (C) 13.09.2025
 
 Written by Mironov A Semyon
 Site       www.mgmsam.pro
@@ -1028,8 +1028,11 @@ main ()
 
     if is_edit_mode
     then
-        >/dev/null 2>&1 run_gpg --list-keys "$GPG_EDIT_KEY_ID" ||
-            try "key not found: -- '$GPG_EDIT_KEY_ID'"
+        STATUS="$(2>&1 run_gpg --list-keys "$GPG_EDIT_KEY_ID")" || {
+            GPG_RETURN_CODE=$?
+            >&2 echo "${STATUS:-}"
+            return "$GPG_RETURN_CODE"
+        }
     fi
 
     is_diff $# 0 || try 2 "no batch file specified"
