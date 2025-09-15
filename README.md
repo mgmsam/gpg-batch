@@ -1,3 +1,5 @@
+[![Repository License](https://img.shields.io/badge/license-GPL%20v3.0-brightgreen.svg)](COPYING)
+
 # GPG-Batch
 
 Unattended key generation using one or more batch files.
@@ -157,7 +159,9 @@ Try `./gpg-batch.sh --help` for more information.
 
 ## Enter a passphrase
 
-- use the script's STDIN:
+Items are arranged in order of priority from the lowest to the highest
+
+- Use the script's STDIN:
 
   ```shell
   echo 'My passphrase' | ./gpg-batch.sh [OPTIONS] BATCHFILE ...
@@ -169,48 +173,70 @@ Try `./gpg-batch.sh --help` for more information.
   cat /tmp/gpg.pass | ./gpg-batch.sh [OPTIONS] BATCHFILE ...
   ```
 
-  > the passphrase can be empty
+  > Only the first line will be read from file;
 
-- specify passphrase in the batch file:
-
-  *__Passphrase:__ string*
-
-  > don't use a passphrase:
-  > *%no-protection*
-
-- specify in the options file:
+- Use the `passphrase` option in the options file:
 
   ```shell
   cat ~/gpg.options
   ```
 
   ```
-  passphrase  My passphrase
   pinentry-mode loopback
+  passphrase My passphrase
   ```
 
-  or save the passphrase in a file, such as `/tmp/gpg.pass` and specify the path to this file in the same options file:
-
-  ```shell
-  cat ~/gpg.options
-  ```
-
-  ```
-  passphrase-file /tmp/gpg.pass
-  pinentry-mode loopback
-  ```
-
-  > `passphrase-file` takes priority over `passphrase`;
-  > the `~` - `gpg` extension is unsupported;
-
-  then run key generation:
+  Then run key generation:
 
   ```shell
   ./gpg-batch.sh [OPTIONS] --options ~/gpg.options [--] BATCHFILE ...
   ```
 
-  or
+- Specify the passphrase in the arguments:
 
   ```shell
-  ./gpg-batch.sh [OPTIONS] --options ~/gpg.options --edit-key <key-ID> [--] BATCHFILE ...
+  ./gpg-batch.sh [OPTIONS] --passphrase "My passphrase" [--] BATCHFILE ...
   ```
+
+- Save the passphrase to a file:
+
+  ```shell
+  cat /tmp/gpg.pass
+  ```
+
+  ```
+  My passphrase
+  ```
+
+  > Only the first line will be read from file;
+
+  - Specify the path to the passphrase file in the options file:
+
+    ```shell
+    cat ~/gpg.options
+    ```
+
+    ```
+    pinentry-mode loopback
+    passphrase-file /tmp/gpg.pass
+    ```
+
+    > the `~` - `gpg` extension is unsupported;
+
+    Then run key generation:
+
+    ```shell
+    ./gpg-batch.sh [OPTIONS] --options ~/gpg.options [--] BATCHFILE ...
+    ```
+
+  - Specify the path to the passphrase file in the arguments:
+
+    ```shell
+    ./gpg-batch.sh [OPTIONS] --passphrase-file /tmp/gpg.pass [--] BATCHFILE ...
+    ```
+- in the batch file:
+
+  - *__`Passphrase:`__ string*
+
+  - *__`%no-protection`__*
+            Using this option allows the creation of keys without any passphrase protection. This option is mainly intended for regression tests.
