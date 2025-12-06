@@ -21,13 +21,13 @@
 usage ()
 {
     echo "
-Usage: $PKG [OPTION] [--] BATCHFILE ...
-   or: $PKG [OPTION] --edit-key <key-ID> [--] BATCHFILE ..."
+Usage: $PACKAGE_NAME [OPTION] [--] BATCHFILE ...
+   or: $PACKAGE_NAME [OPTION] --edit-key <key-ID> [--] BATCHFILE ..."
 }
 
 show_help ()
 {
-    is_empty "${GPG:-}" && >&2 say "gpg: command not found" || "$GPG" --version
+    is_empty "${GPG_BIN:-}" && >&2 say "gpg: command not found" || "$GPG_BIN" --version
     usage
     echo "
 Commands:
@@ -47,6 +47,12 @@ Options:
                             stated through the environment variable ‘GNUPGHOME’
                             or (on Windows systems) by means of the Registry
                             entry HKCU\Software\GNU\GnuPG:HomeDir.
+      --passphrase string   Use string as the passphrase.
+      --passphrase-fd n     Read the passphrase from file descriptor n. Only the
+                            first line will be read from file descriptor n.
+      --passphrase-file file
+                            Read the passphrase from file. Only the first line
+                            will be read from file.
       --version             Display version information and exit.
   -h, -?, --help            Display this help and exit.
 
@@ -61,14 +67,14 @@ Options controlling the diagnostic output:
 
 An argument of '--' disables further option processing.
 
-Report bugs to: bug-$PKG@mgmsam.pro
-$PKG home page: <https://www.mgmsam.pro/shell-script/$PKG/>"
+Report bugs to: bug-$PACKAGE_NAME@mgmsam.pro
+$PACKAGE_NAME home page: <https://www.mgmsam.pro/shell-script/$PACKAGE_NAME/>"
     exit
 }
 
 show_version ()
 {
-    echo "${0##*/} 0.1.0 - (C) 13.09.2025
+    echo "${0##*/} 0.1.1 - (C) 06.12.2025
 
 Written by Mironov A Semyon
 Site       www.mgmsam.pro
@@ -79,7 +85,7 @@ Email      s.mironov@mgmsam.pro"
 try ()
 {
     say "$@" >&2
-    echo "Try '$PKG --help' for more information." >&2
+    echo "Try '$PACKAGE_NAME --help' for more information." >&2
     exit "$RETURN"
 }
 
@@ -164,17 +170,18 @@ say ()
                 is_equal "$PUTS" printf &&
                 PUTS_OPTIONS=%s ||
                 PUTS_OPTIONS=-n
-                ;;
-            *[!0-9]*|"")
+            ;;
+            *[!0-9]* | "")
                 break
-                ;;
+            ;;
             *)
                 RETURN=$1
+            ;;
         esac
         shift
     done
     is_empty "$@" || {
-        puts "$PKG:${1:+" $@"}"
+        puts "$PACKAGE_NAME:${1:+" $@"}"
         PUTS_OPTIONS=
     }
 }
@@ -183,6 +190,16 @@ die ()
 {
     say "$@" >&2
     exit "$RETURN"
+}
+
+verbose_say ()
+{
+    is_empty "${VERBOSE:-}" || say "$@"
+}
+
+verbose_echo ()
+{
+    is_empty "${VERBOSE:-}" || echo "$@"
 }
 
 is_dir ()
@@ -200,33 +217,12 @@ is_file ()
     test -f "${1:-}"
 }
 
-can_read_file ()
-{
-    is_file "${1:-}" || {
-        is_exists "${1:-}" &&
-        say 2 "is not a file: -- '${1:-}'" ||
-        say 2 "no such file: -- '${1:-}'"
-        return 2
-    } >&2
-    test -r "${1:-}" || {
-        say 1 "no read permissions: -- '${1:-}'" >&2
-        return 1
-    }
-}
-
-trim_string ()
-{
-    STRING="${1#"${1%%[![:space:]]*}"}"
-    STRING="${STRING%"${STRING##*[![:space:]]}"}"
-    echo "$STRING"
-}
-
 which ()
 {
     case "${PATH:-}" in
         *[!:]:)
             PATH="$PATH:"
-            ;;
+        ;;
     esac
     RETURN=1
     case "${1:-}" in
@@ -237,7 +233,7 @@ which ()
                 puts "$1"
                 RETURN=0
             fi
-            ;;
+        ;;
         ?*)
             IFS_SAVE="${IFS:-}"
             IFS=:
@@ -253,6 +249,7 @@ which ()
                 fi
             done
             IFS="${IFS_SAVE:-}"
+        ;;
     esac
     return "$RETURN"
 }
@@ -264,7 +261,7 @@ mktempdir ()
     umask 077
     while :
     do
-        TMPTRG="$TMPDIR/${PKG:-tmp}.$(2>/dev/null "$DATE" +%s)"
+        TMPTRG="$TMPDIR/${PACKAGE_NAME:-tmp}.$(2>/dev/null "$DATE" +%s)"
         test -e "$TMPTRG" || {
             >/dev/null 2>&1 "$MKDIR" -p -- "$TMPTRG" && {
                 echo "$TMPTRG"
@@ -279,9 +276,121 @@ mktempdir ()
     done
 }
 
+can_read_file ()
+{
+    is_file "${1:-}" || {
+        is_exists "${1:-}" &&
+        say 2 "can't open '${1:-}': is not a file" ||
+        say 2 "can't open '${1:-}': no such file"
+        return 2
+    } >&2
+    test -r "${1:-}" || {
+        say 1 "can't open '${1:-}': no read permissions" >&2
+        return 1
+    }
+}
+
+check_dependencies ()
+{
+    is_not_empty "${GPG_BIN:-}" || die   "gpg: command not found"
+     DATE="$(which date)"       || die  "date: command not found"
+    MKDIR="$(which mkdir)"      || die "mkdir: command not found"
+       RM="$(which rm)"         || die    "rm: command not found"
+}
+
+get_passphrase ()
+{
+    while IFS="$LF" read -r INPUT_PASSPHRASE ||
+            is_not_empty "${INPUT_PASSPHRASE:-}"
+    do
+        INPUT_PASSPHRASE="${INPUT_PASSPHRASE:-"$LF"}"
+        break
+    done
+}
+
+trim_string ()
+{
+    STRING="${1#"${1%%[![:space:]]*}"}"
+    STRING="${STRING%"${STRING##*[![:space:]]}"}"
+    echo "$STRING"
+}
+
+get_keyword_value ()
+{
+    KEYWORD_VALUE="$(trim_string "${1#*[:[:blank:]]}")"
+}
+
+set_gpg_options ()
+{
+    if is_not_empty "${PASSPHRASE_FD:-}"
+    then
+        is_diff "$PASSPHRASE_FD" 0 || get_passphrase
+        GPG_BATCH=gpg_batch_with_passphrase_fd
+    elif is_not_empty "${PASSPHRASE_FILE:-}"
+    then
+        GPG_BATCH=gpg_batch_with_passphrase_file
+    elif is_not_empty "${INPUT_PASSPHRASE:-}"
+    then
+        GPG_BATCH=gpg_batch_with_passphrase
+    else
+        GPG_BATCH=gpg_batch
+    fi
+
+    is_empty "${OPTIONS_FILE:-}" || {
+        GPG_OPTIONS="${GPG_OPTIONS:-} --options $OPTIONS_FILE"
+        is_not_empty "${PASSPHRASE_FD:-"${PASSPHRASE_FILE:-}"}" || {
+            while read -r KEYWORD || is_not_empty "${KEYWORD:-}"
+            do
+                case "${KEYWORD:-}" in
+                    passphrase-fd*)
+                        get_keyword_value "$KEYWORD"
+                    ;;
+                    passphrase-file*)
+                        KEYWORD_VALUE=
+                    ;;
+                esac
+            done < "$OPTIONS_FILE"
+            is_diff "${KEYWORD_VALUE:-}" 0 || {
+                get_passphrase
+                PASSPHRASE_FD=0
+                GPG_BATCH=gpg_batch_with_passphrase_fd
+            }
+        }
+
+    }
+    GPG_OPTIONS="${GPG_OPTIONS:-} ${ALLOW_WEAK_KEY_SIGNATURES:-} ${NO_TTY:-} ${QUIET:-} ${VERBOSE:-}"
+}
+
+set_key_variables ()
+{
+    MASTER_KEY=
+    EXPIRE_DATE=
+    KEY_TYPE=
+    NAME_REAL=
+    SUBKEY_OPTIONS=
+    SUBKEY_TYPE=
+    SUBKEY_LENGTH=
+    SUBKEY_CURVE=
+    SUBKEY_USAGE=
+    SUBKEY_EXPIRATION_DATE=
+    ADDITIONAL_SUBKEY=
+    NO_PROTECTION=
+    PASSPHRASE=
+}
+
+can_generate_subkey_and_master_key_together ()
+{
+    is_empty "${SUBKEY_EXPIRATION_DATE:+"${SUBKEY_TYPE:-}"}"
+}
+
+is_edit_mode ()
+{
+    is_not_empty "${GPG_EDIT_KEY_ID:-}"
+}
+
 run_gpg ()
 {
-    "$GPG" ${OPTIONS_FILE:+--options "$OPTIONS_FILE"} ${GPG_OPTIONS:-} "$@"
+    "$GPG_BIN" --expert --batch ${GPG_OPTIONS:-} "$@"
 }
 
 gpg_update_trustdb ()
@@ -289,16 +398,37 @@ gpg_update_trustdb ()
     >/dev/null 2>&1 run_gpg --update-trustdb || :
 }
 
-run_gpg_batch ()
+gpg_batch ()
 {
-    run_gpg --expert --batch "$@" <<EOF
-$KEY_SETTINGS
+    run_gpg "$@" <<EOF
+$GPG_KEY_OPTIONS
+EOF
+}
+
+gpg_batch_with_passphrase ()
+{
+    run_gpg --pinentry-mode loopback --passphrase "$PASSPHRASE" "$@" <<EOF
+$GPG_KEY_OPTIONS
+EOF
+}
+
+gpg_batch_with_passphrase_fd ()
+{
+    run_gpg --pinentry-mode loopback --passphrase-fd "$PASSPHRASE_FD" "$@" <<EOF
+$GPG_KEY_OPTIONS
+EOF
+}
+
+gpg_batch_with_passphrase_file ()
+{
+    run_gpg --pinentry-mode loopback --passphrase-file "$PASSPHRASE_FILE" "$@" <<EOF
+$GPG_KEY_OPTIONS
 EOF
 }
 
 gpg_generate_key ()
 {
-    run_gpg_batch --full-generate-key --status-fd=1 "$@"
+    "$RUN_GPG_BATCH" --full-generate-key --status-fd=1 "$@"
 }
 
 set_subkey_curve ()
@@ -350,15 +480,16 @@ set_subkey_usage ()
         case "$1" in
             [aA][uU][tT][hH])
                 AUTH=auth
-                ;;
+            ;;
             [cC][eE][rR][tT])
                 CERT=cert
-                ;;
+            ;;
             [eE][nN][cC][rR][yY][pP][tT])
                 ENCRYPT=encrypt
-                ;;
+            ;;
             [sS][iI][gG][nN])
                 SIGN=sign
+            ;;
         esac
         shift
     done
@@ -393,15 +524,14 @@ get_key_type ()
         22 | [eE][dD][dD][sS][aA] | [dD][eE][fF][aA][uU][lL][tT])
             echo EDDSA
         ;;
+        *)
+            echo "${1:-}"
+            return 1
+        ;;
     esac
 }
 
-get_keyword_value ()
-{
-    KEYWORD_VALUE="$(trim_string "${1#*:}")"
-}
-
-get_subkey_settings ()
+get_subkey_options ()
 {
     SUBKEY_TYPE=
     SUBKEY_LENGTH=
@@ -434,10 +564,10 @@ get_subkey_settings ()
                 set_subkey_usage
             ;;
         esac
-        SUBKEY="${SUBKEY#"$LINE"}"
-        SUBKEY="${SUBKEY#"$LF"}"
+        SUBKEY_OPTIONS="${SUBKEY_OPTIONS#"$LINE"}"
+        SUBKEY_OPTIONS="${SUBKEY_OPTIONS#"$LF"}"
     done <<EOF
-$SUBKEY
+$SUBKEY_OPTIONS
 EOF
     SUBKEY_TYPE="$(get_key_type "$SUBKEY_TYPE")"
 }
@@ -448,28 +578,28 @@ build_subkey_generation_command ()
         RSA)
             case "${SUBKEY_USAGE:-}" in
                 "" | "auth encrypt sign" | "auth cert encrypt sign")
-                    KEY_SETTINGS="8${LF}A${LF}Q"
+                    GPG_KEY_OPTIONS="8${LF}A${LF}Q"
                 ;;
                 "auth sign" | "auth cert sign")
-                    KEY_SETTINGS="8${LF}E${LF}A${LF}Q"
+                    GPG_KEY_OPTIONS="8${LF}E${LF}A${LF}Q"
                 ;;
                 "auth encrypt" | "auth cert encrypt")
-                    KEY_SETTINGS="8${LF}S${LF}A${LF}Q"
+                    GPG_KEY_OPTIONS="8${LF}S${LF}A${LF}Q"
                 ;;
                 "encrypt sign" | "cert encrypt sign")
-                    KEY_SETTINGS="8${LF}Q"
+                    GPG_KEY_OPTIONS="8${LF}Q"
                 ;;
                 auth | "auth cert")
-                    KEY_SETTINGS="8${LF}S${LF}E${LF}A${LF}Q"
+                    GPG_KEY_OPTIONS="8${LF}S${LF}E${LF}A${LF}Q"
                 ;;
                 cert)
-                    KEY_SETTINGS="8${LF}S${LF}E${LF}Q"
+                    GPG_KEY_OPTIONS="8${LF}S${LF}E${LF}Q"
                 ;;
                 encrypt | "cert encrypt")
-                    KEY_SETTINGS=6
+                    GPG_KEY_OPTIONS=6
                 ;;
                 sign | "cert sign")
-                    KEY_SETTINGS=4
+                    GPG_KEY_OPTIONS=4
                 ;;
             esac
             case "${SUBKEY_LENGTH:-}" in
@@ -481,7 +611,7 @@ build_subkey_generation_command ()
                     test "$SUBKEY_LENGTH" -le 4096 || SUBKEY_LENGTH=
                 ;;
             esac
-            KEY_SETTINGS="$KEY_SETTINGS$LF${SUBKEY_LENGTH:-}"
+            GPG_KEY_OPTIONS="$GPG_KEY_OPTIONS$LF${SUBKEY_LENGTH:-}"
         ;;
         ELG | ELG-E)
             case "${SUBKEY_LENGTH:-}" in
@@ -493,21 +623,21 @@ build_subkey_generation_command ()
                     test "$SUBKEY_LENGTH" -le 4096 || SUBKEY_LENGTH=
                 ;;
             esac
-            KEY_SETTINGS="5$LF${SUBKEY_LENGTH:-}"
+            GPG_KEY_OPTIONS="5$LF${SUBKEY_LENGTH:-}"
         ;;
         DSA)
             case "${SUBKEY_USAGE:-}" in
                 "" | "auth cert sign" | "auth cert" | "auth sign")
-                    KEY_SETTINGS="7${LF}A${LF}Q"
+                    GPG_KEY_OPTIONS="7${LF}A${LF}Q"
                 ;;
                 auth)
-                    KEY_SETTINGS="7${LF}S${LF}A${LF}Q"
+                    GPG_KEY_OPTIONS="7${LF}S${LF}A${LF}Q"
                 ;;
                 cert)
-                    KEY_SETTINGS="7${LF}S${LF}Q"
+                    GPG_KEY_OPTIONS="7${LF}S${LF}Q"
                 ;;
                 sign)
-                    KEY_SETTINGS=3
+                    GPG_KEY_OPTIONS=3
                 ;;
             esac
             case "${SUBKEY_LENGTH:-}" in
@@ -519,7 +649,7 @@ build_subkey_generation_command ()
                     test "$SUBKEY_LENGTH" -le 3072 || SUBKEY_LENGTH=
                 ;;
             esac
-            KEY_SETTINGS="$KEY_SETTINGS$LF${SUBKEY_LENGTH:-}"
+            GPG_KEY_OPTIONS="$GPG_KEY_OPTIONS$LF${SUBKEY_LENGTH:-}"
         ;;
         ECC | ECDH)
             case "$SUBKEY_CURVE" in
@@ -527,75 +657,51 @@ build_subkey_generation_command ()
                     SUBKEY_CURVE=1
                 ;;
             esac
-            KEY_SETTINGS="12$LF$SUBKEY_CURVE"
+            GPG_KEY_OPTIONS="12$LF$SUBKEY_CURVE"
         ;;
         ECDSA | EDDSA)
             case "${SUBKEY_USAGE:-}" in
                 "" | "auth sign" | "auth cert sign")
-                    KEY_SETTINGS="11${LF}A${LF}Q"
+                    GPG_KEY_OPTIONS="11${LF}A${LF}Q"
                 ;;
                 cert)
-                    KEY_SETTINGS="11${LF}S${LF}Q"
+                    GPG_KEY_OPTIONS="11${LF}S${LF}Q"
                 ;;
                 auth | "auth cert")
-                    KEY_SETTINGS="11${LF}S${LF}A${LF}Q"
+                    GPG_KEY_OPTIONS="11${LF}S${LF}A${LF}Q"
                 ;;
                 sign | "cert sign")
-                    KEY_SETTINGS=10
+                    GPG_KEY_OPTIONS=10
                 ;;
             esac
-            KEY_SETTINGS="$KEY_SETTINGS$LF$SUBKEY_CURVE"
+            GPG_KEY_OPTIONS="$GPG_KEY_OPTIONS$LF$SUBKEY_CURVE"
         ;;
     esac
 
-    is_not_empty "${PASSPHRASE:-}" &&
-    KEY_SETTINGS="addkey$LF$KEY_SETTINGS$LF${EXPIRE_DATE:-}$LF$PASSPHRASE${LF}save" ||
-    KEY_SETTINGS="addkey$LF$KEY_SETTINGS$LF${EXPIRE_DATE:-}$LF${NO_PROTECTION:+y$LF}save"
-}
+    GPG_KEY_OPTIONS="addkey$LF$GPG_KEY_OPTIONS$LF${EXPIRE_DATE:-}$LF${NO_PROTECTION:+y$LF}save"
+   #GPG_KEY_OPTIONS="addkey$LF$GPG_KEY_OPTIONS$LF${EXPIRE_DATE:-}${LF}save"
 
-gpg_edit_key ()
-{
-    if is_empty "${NO_PROTECTION:-"${PASSPHRASE:-}"}"
-    then
-        run_gpg_batch --command-fd=0 --edit-key "$KEY_ID"
-    else
-        run_gpg_batch --command-fd=0 --pinentry-mode=loopback --edit-key "$KEY_ID"
-    fi || {
-        GPG_RETURN_CODE=$?
-        return "$GPG_RETURN_CODE"
-    }
+    is_diff "$GPG_BATCH" gpg_batch_with_passphrase_fd ||
+        GPG_KEY_OPTIONS="$INPUT_PASSPHRASE$LF$GPG_KEY_OPTIONS"
 }
 
 gpg_generate_subkey ()
 {
-    while is_not_empty "${SUBKEY:-}"
+    while is_not_empty "${SUBKEY_OPTIONS:-}"
     do
-        get_subkey_settings
+        get_subkey_options
         build_subkey_generation_command
 
-        is_empty "${VERBOSE:-}" ||
-             say "generating the GPG subkey [$SUBKEY_TYPE]: ..."
-
-        if gpg_edit_key
+        verbose_say "generating the GPG subkey [$SUBKEY_TYPE]: ..."
+        if "$RUN_GPG_BATCH" --command-fd=0 --edit-key "$KEY_ID"
         then
-            is_empty "${VERBOSE:-}" ||
-                 say "generating the GPG subkey [$SUBKEY_TYPE]: success"
+            verbose_say "generating the GPG subkey [$SUBKEY_TYPE]: success"
         else
-            is_empty "${VERBOSE:-}" ||
-                 say "generating the GPG subkey [$SUBKEY_TYPE]: failed"
+            GPG_RETURN_CODE=$?
+            verbose_say "generating the GPG subkey [$SUBKEY_TYPE]: failed"
             return "$GPG_RETURN_CODE"
         fi
     done
-}
-
-can_generate_subkey_and_master_key_together ()
-{
-    is_empty "${SUBKEY_EXPIRATION_DATE:+"${SUBKEY_TYPE:-}"}"
-}
-
-is_edit_mode ()
-{
-    is_not_empty "${GPG_EDIT_KEY_ID:-}"
 }
 
 include_subkey ()
@@ -635,17 +741,40 @@ EOF
 build_key_chain ()
 {
     TMP=
-
     can_generate_subkey_and_master_key_together && {
-        is_edit_mode || SUBKEY=
+        is_edit_mode || SUBKEY_OPTIONS=
         include_subkey
     } || exclude_subkey
-
     MASTER_KEY="${TMP%"$LF"}"
-    SUBKEY="${SUBKEY:-}${ADDITIONAL_SUBKEY:+"$LF$ADDITIONAL_SUBKEY"}"
+    SUBKEY_OPTIONS="${SUBKEY_OPTIONS:-}${ADDITIONAL_SUBKEY:+"$LF$ADDITIONAL_SUBKEY"}"
 }
 
-enable_next_subkey ()
+set_protection ()
+{
+    GPG_KEY_OPTIONS="$MASTER_KEY"
+    if is_empty "${KEY_TYPE:-"${SUBKEY_TYPE:-}"}"
+    then
+        RUN_GPG_BATCH=gpg_batch
+    elif is_empty "${PASSPHRASE:-"${NO_PROTECTION:-}"}"
+    then
+        RUN_GPG_BATCH="$GPG_BATCH"
+        case "${INPUT_PASSPHRASE:-}" in
+            "$LF")
+                NO_PROTECTION=yes
+                GPG_KEY_OPTIONS="$GPG_KEY_OPTIONS$LF%no-protection"
+            ;;
+            ?*)
+                is_equal "$GPG_BATCH" gpg_batch_with_passphrase_fd &&
+                GPG_KEY_OPTIONS="$INPUT_PASSPHRASE$LF$GPG_KEY_OPTIONS"
+                PASSPHRASE="$INPUT_PASSPHRASE"
+            ;;
+        esac
+    else
+        RUN_GPG_BATCH=gpg_batch
+    fi
+}
+
+include_next_subkey ()
 {
     SUBKEY_TYPE=
     SUBKEY_IS_ADDITIONAL=
@@ -653,8 +782,8 @@ enable_next_subkey ()
 
     while read -r LINE || is_not_empty "${LINE:-}"
     do
-        TEST_KEY_SETTINGS="${TEST_KEY_SETTINGS#"$LINE"}"
-        TEST_KEY_SETTINGS="${TEST_KEY_SETTINGS#"$LF"}"
+        GPG_TEST_KEY_OPTIONS="${GPG_TEST_KEY_OPTIONS#"$LINE"}"
+        GPG_TEST_KEY_OPTIONS="${GPG_TEST_KEY_OPTIONS#"$LF"}"
 
         is_not_empty "${SUBKEY_IS_ADDITIONAL:-}" ||
         case "${LINE:-}" in
@@ -676,65 +805,27 @@ enable_next_subkey ()
         esac
         TMP="${TMP:-}${LINE:-}$LF"
     done <<EOF
-$TEST_KEY_SETTINGS
+$GPG_TEST_KEY_OPTIONS
 EOF
 
-    TEST_KEY_SETTINGS="$TMP$TEST_KEY_SETTINGS"
+    GPG_TEST_KEY_OPTIONS="$TMP$GPG_TEST_KEY_OPTIONS"
 }
 
-check_key_settings ()
+check_key_options ()
 {
     while :
     do
-        KEY_SETTINGS="${CANVAS:-}$TEST_KEY_SETTINGS"
+        GPG_KEY_OPTIONS="${CANVAS:-}$GPG_TEST_KEY_OPTIONS"
         gpg_generate_key --homedir "$TMP_GNUPGHOME" --dry-run || return
-        case "$TEST_KEY_SETTINGS" in
+        case "$GPG_TEST_KEY_OPTIONS" in
             *$LF##*)
-                enable_next_subkey
+                include_next_subkey
             ;;
             *)
                 return
             ;;
         esac
     done 2>&1 >/dev/null
-}
-
-extend_canvas ()
-{
-    while read -r LINE || is_not_empty "${LINE:-}"
-    do
-        CANVAS="${CANVAS:-}$LF"
-    done <<EOF
-$MASTER_KEY
-EOF
-}
-
-set_protection ()
-{
-    case "${STDIN_PASSPHRASE:-}" in
-        "")
-            is_empty "${NO_PROTECTION:-}" || {
-                PASSPHRASE=
-                KEY_SETTINGS="$KEY_SETTINGS$LF%no-protection"
-            }
-        ;;
-        "$LF")
-            is_empty "${KEY_TYPE:-"${SUBKEY_TYPE:-}"}" || {
-                PASSPHRASE=
-                KEY_SETTINGS="$KEY_SETTINGS$LF%no-protection"
-                NO_PROTECTION=yes
-            }
-        ;;
-        *)
-            is_not_empty "${PASSPHRASE:-}" || {
-                is_empty "${KEY_TYPE:-"${SUBKEY_TYPE:-}"}" || {
-                    PASSPHRASE="$STDIN_PASSPHRASE"
-                    KEY_SETTINGS="$KEY_SETTINGS${LF}Passphrase: ${PASSPHRASE:-}"
-                }
-            }
-            NO_PROTECTION=
-        ;;
-    esac
 }
 
 format_error_message_with_line_num ()
@@ -790,87 +881,73 @@ EOF
     return "$GPG_RETURN_CODE"
 }
 
+extend_canvas ()
+{
+    while read -r LINE || is_not_empty "${LINE:-}"
+    do
+        CANVAS="${CANVAS:-}$LF"
+    done <<EOF
+$MASTER_KEY
+EOF
+}
+
 generate_key ()
 {
     MASTER_KEY="${MASTER_KEY%"$LF"}"
     build_key_chain
-    is_empty "${VERBOSE:-}" || say -n "testing the GPG key parameters:"
-    TEST_KEY_SETTINGS="$MASTER_KEY$LF%no-protection"
+    set_protection
+    verbose_say -n "testing the GPG key parameters:"
+    GPG_TEST_KEY_OPTIONS="$GPG_KEY_OPTIONS$LF%no-protection"
     if is_edit_mode
     then
         is_not_empty "${NAME_REAL:-}" ||
-            TEST_KEY_SETTINGS="$TEST_KEY_SETTINGS${LF}Name-Real: $PKG"
+            GPG_TEST_KEY_OPTIONS="$GPG_TEST_KEY_OPTIONS${LF}Name-Real: $PACKAGE_NAME"
         if is_empty "${KEY_TYPE:-}"
         then
-            TEST_KEY_SETTINGS="Key-Type: 1$LF$TEST_KEY_SETTINGS"
-            STATUS="$(check_key_settings)" || format_error_message_with_line_num
+            GPG_TEST_KEY_OPTIONS="Key-Type: 1$LF$GPG_TEST_KEY_OPTIONS"
+            STATUS="$(check_key_options)" || format_error_message_with_line_num
         else
-            STATUS="$(check_key_settings)" || format_error_message
+            STATUS="$(check_key_options)" || format_error_message
         fi && {
             KEY_ID="${GPG_EDIT_KEY_ID:-}"
-            is_empty "${VERBOSE:-}" || echo " passed"
-            set_protection
             extend_canvas
+            verbose_echo " passed"
         }
     else
-        STATUS="$(check_key_settings)" || format_error_message && {
-            KEY_SETTINGS="${CANVAS:-}$MASTER_KEY"
-            is_empty "${VERBOSE:-}" || echo " passed"
-            set_protection
+        STATUS="$(check_key_options)" || format_error_message && {
+            verbose_echo " passed"
+            verbose_say "generating the GPG key [$KEY_TYPE]: ..."
             gpg_update_trustdb
-            is_empty "${VERBOSE:-}" || {
-                KEY_TYPE="$(trim_string "${KEY_TYPE#*:}")"
-                KEY_TYPE="$(get_key_type "$KEY_TYPE")"
-                say "generating the GPG key [$KEY_TYPE]: ..."
-            }
+            GPG_KEY_OPTIONS="${CANVAS:-}$GPG_KEY_OPTIONS"
             STATUS="$(gpg_generate_key)" || {
                 GPG_RETURN_CODE=$?
                 false
             } && {
-                extend_canvas
                 KEY_ID="${STATUS##*KEY_CREATED}"
                 KEY_ID="${KEY_ID##*[[:blank:]]}"
                 KEY_CREATED="${KEY_CREATED:+"$KEY_CREATED "}$KEY_ID"
-                is_empty "${VERBOSE:-}" ||
-                    say "generating the GPG key [$KEY_TYPE]: success"
+                extend_canvas
+                verbose_say "generating the GPG key [$KEY_TYPE]: success"
             }
         }
     fi &&
-    case "${SUBKEY:-}" in
+    case "${SUBKEY_OPTIONS:-}" in
         ?*)
             gpg_update_trustdb
             gpg_generate_subkey || is_not_empty "${FORCE:-}" || return
         ;;
     esac || {
-        is_empty "${VERBOSE:-}" &&  echo "${STATUS:-}" ||
-                                    echo " failed${STATUS:+"$LF$STATUS"}"
+        verbose_echo " failed"
+        echo "${STATUS:-}"
         is_not_empty "${FORCE:-}" || return
         extend_canvas
     }
     set_key_variables
 }
 
-set_key_variables ()
-{
-    MASTER_KEY=
-    EXPIRE_DATE=
-    KEY_TYPE=
-    NAME_REAL=
-    SUBKEY=
-    SUBKEY_TYPE=
-    SUBKEY_LENGTH=
-    SUBKEY_CURVE=
-    SUBKEY_USAGE=
-    SUBKEY_EXPIRATION_DATE=
-    ADDITIONAL_SUBKEY=
-    SYNTAX_ERROR=
-    NO_PROTECTION=
-    PASSPHRASE=
-}
-
 check_expiration_date ()
 {
-    case "$KEYWORD_VALUE" in
+    case "${KEYWORD_VALUE:-}" in
         *[dD])
             KEYWORD_VALUE="${KEYWORD_VALUE%?}d"
         ;;
@@ -884,16 +961,14 @@ check_expiration_date ()
             KEYWORD_VALUE="${KEYWORD_VALUE%?}y"
         ;;
         *[!0-9]*)
-            SYNTAX_ERROR=yes
             return 2
         ;;
         *)
-            KEYWORD_VALUE="${KEYWORD_VALUE}d"
+            KEYWORD_VALUE="${KEYWORD_VALUE:-}d"
         ;;
     esac &&
     case "${KEYWORD_VALUE%?}" in
         "" | *[!0-9]*)
-            SYNTAX_ERROR=yes
             return 2
         ;;
     esac
@@ -909,18 +984,18 @@ set_expiration_date ()
         then
             ADDITIONAL_SUBKEY="$ADDITIONAL_SUBKEY$LF$KEYWORD"
             KEYWORD="##$KEYWORD"
-        elif is_not_empty "${SUBKEY:-}"
+        elif is_not_empty "${SUBKEY_OPTIONS:-}"
         then
             if is_equal "$EXPIRE_DATE" "$KEYWORD_VALUE"
             then
                 KEYWORD=
             else
                 SUBKEY_EXPIRATION_DATE=yes
-                SUBKEY="$SUBKEY$LF$KEYWORD"
+                SUBKEY_OPTIONS="$SUBKEY_OPTIONS$LF$KEYWORD"
                 KEYWORD="#$KEYWORD"
             fi
         else
-            SUBKEY="$KEYWORD"
+            SUBKEY_OPTIONS="$KEYWORD"
             KEYWORD="#$KEYWORD"
         fi
     fi
@@ -942,47 +1017,30 @@ run_batch_file ()
             ;;
             %no-protection)
                 NO_PROTECTION=yes
-                KEYWORD=
             ;;
             Expire-Date:*)
-                is_not_empty "${SYNTAX_ERROR:-}" || {
-                    get_keyword_value "$KEYWORD"
-                    is_empty "${KEYWORD_VALUE:-}" && SYNTAX_ERROR=yes ||
-                    if check_expiration_date
-                    then
-                        set_expiration_date
-                    fi
-                }
+                get_keyword_value "$KEYWORD"
+                if check_expiration_date
+                then
+                    set_expiration_date
+                fi
             ;;
             Key-Type:*)
                 is_empty "${KEY_TYPE:-}" || generate_key || return
-                KEY_TYPE="$KEYWORD"
+                get_keyword_value "$KEYWORD"
+                KEY_TYPE="$(get_key_type "${KEYWORD_VALUE:-}")" &&
+                    KEY_TYPE="$KEYWORD_VALUE" || KEY_TYPE="$KEYWORD"
             ;;
             Name-Real:*)
                 NAME_REAL=1
             ;;
             Passphrase:*)
-                is_not_empty "${SYNTAX_ERROR:-}" || {
-                    get_keyword_value "$KEYWORD"
-                    is_empty "${KEYWORD_VALUE:-}" && SYNTAX_ERROR=yes ||
-                    case "${STDIN_PASSPHRASE:-}" in
-                        "")
-                            PASSPHRASE="$KEYWORD_VALUE"
-                        ;;
-                        "$LF")
-                            KEYWORD=
-                            PASSPHRASE=
-                        ;;
-                        *)
-                            KEYWORD="Passphrase: $STDIN_PASSPHRASE"
-                            PASSPHRASE="$STDIN_PASSPHRASE"
-                        ;;
-                    esac
-                }
+                get_keyword_value "$KEYWORD"
+                PASSPHRASE="${KEYWORD_VALUE:-}"
             ;;
             Subkey-Type:*)
                 is_empty "${SUBKEY_TYPE:-}" && {
-                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
+                    SUBKEY_OPTIONS="${SUBKEY_OPTIONS:+"$SUBKEY_OPTIONS$LF"}$KEYWORD"
                     SUBKEY_TYPE=1
                     KEYWORD="#$KEYWORD"
                 } || {
@@ -992,7 +1050,7 @@ run_batch_file ()
             ;;
             Subkey-Curve:* | Subkey-Length:* | Subkey-Usage:*)
                 is_empty "${ADDITIONAL_SUBKEY:-}" && {
-                    SUBKEY="${SUBKEY:+"$SUBKEY$LF"}$KEYWORD"
+                    SUBKEY_OPTIONS="${SUBKEY_OPTIONS:+"$SUBKEY_OPTIONS$LF"}$KEYWORD"
                     KEYWORD="#$KEYWORD"
                 } || {
                     ADDITIONAL_SUBKEY="$ADDITIONAL_SUBKEY$LF$KEYWORD"
@@ -1002,71 +1060,16 @@ run_batch_file ()
         esac
         MASTER_KEY="${MASTER_KEY:-}${KEYWORD:-}$LF"
     done < "$BATCH_FILE"
-    is_empty "${MASTER_KEY:-"${SUBKEY:-}"}" && return || generate_key
+    is_empty "${MASTER_KEY:-"${SUBKEY_OPTIONS:-}"}" && return || generate_key
 }
-
-check_dependencies ()
-{
-    is_not_empty "${GPG:-}" || die   "gpg: command not found"
-     DATE="$(which date)"   || die  "date: command not found"
-    MKDIR="$(which mkdir)"  || die "mkdir: command not found"
-       RM="$(which rm)"     || die    "rm: command not found"
-}
-
-main ()
-{
-    GPG="$(which gpg)"      || GPG=
-    is_empty "${HELP:-}"    || show_help
-    is_empty "${VERSION:-}" || show_version
-
-    check_dependencies
-    is_empty "${OPTIONS_FILE:-}" || can_read_file "$OPTIONS_FILE" || try
-    is_empty  "${GNUPGHOME:-}" || {
-        is_dir "$GNUPGHOME" || try 2 "no such directory: -- '$GNUPGHOME'"
-        export   GNUPGHOME
-    }
-
-    if is_edit_mode
-    then
-        STATUS="$(2>&1 run_gpg --list-keys "$GPG_EDIT_KEY_ID")" || {
-            GPG_RETURN_CODE=$?
-            >&2 echo "${STATUS:-}"
-            return "$GPG_RETURN_CODE"
-        }
-    fi
-
-    is_diff $# 0 || try 2 "no batch file specified"
-    TMP_GNUPGHOME="${TMP_GNUPGHOME:-"$(mktempdir)"}" || die "$TMP_GNUPGHOME"
-    GPG_OPTIONS="${ALLOW_WEAK_KEY_SIGNATURES:-} ${NO_TTY:-} ${QUIET:-} ${VERBOSE:-}"
-    for BATCH_FILE in "$@"
-    do
-        can_read_file "${BATCH_FILE:-}" || {
-            GPG_RETURN_CODE=$?
-            is_not_empty "${FORCE:-}" || break
-            continue
-        }
-        run_batch_file || break
-    done
-    gpg_update_trustdb
-    is_empty "${KEY_CREATED:+"${VERBOSE:-}"}" || say 0 "key created: $KEY_CREATED"
-    STATUS="$(2>&1 "$RM" -rvf -- "$TMP_GNUPGHOME")" || die "[TMP_GNUPGHOME] $STATUS"
-    return "${GPG_RETURN_CODE:-0}"
-}
-
-PKG="${0##*/}"
-LF='
-'
-is_term 0 ||
-while IFS="$LF" read -r STDIN_PASSPHRASE || is_not_empty "${STDIN_PASSPHRASE:-}"
-do
-    STDIN_PASSPHRASE="${STDIN_PASSPHRASE:-"$LF"}"
-    break
-done
 
 arg_is_not_empty ()
 {
-    is_not_empty "${2:-}"  ||
-        try 2 "$PREFIX: option requires an argument -- '$1'"
+    is_not_empty "${2:-}"  || {
+        is_equal "${#1}" 2 &&
+        try 2 "$PREFIX: option requires an argument -- '${1#?}'" ||
+        try 2 "$PREFIX: option '$1' requires an argument"
+    }
 }
 
 invalid_option ()
@@ -1076,6 +1079,22 @@ invalid_option ()
     try 2 "$PREFIX: unrecognized option '$1'"
 }
 
+is_not_option ()
+{
+    for OPTION in $OPTIONS
+    do
+        case "$2" in
+            "--$OPTION" | "-$OPTION")
+                arg_is_not_empty "$1"
+            ;;
+        esac
+    done
+}
+
+PACKAGE_NAME="${0##*/}"
+LF='
+'
+OPTIONS="? h help version allow-weak-key-signatures force edit-key homedir no-tty options passphrase q quiet v verbose --"
 ARG_NUM=0
 while is_diff $# 0
 do
@@ -1130,6 +1149,43 @@ do
             arg_is_not_empty "${1%%=*}" "${1#*=}"
             OPTIONS_FILE="${1#*=}"
         ;;
+        --passphrase)
+            arg_is_not_empty "$1" "${2+"is set"}"
+            is_empty "${2:-}" && INPUT_PASSPHRASE="$LF" || {
+                is_not_option "$1" "$2"
+                INPUT_PASSPHRASE="$2"
+            }
+            ARG_NUM="$((ARG_NUM + 1))"
+            shift
+        ;;
+        --passphrase=*)
+            INPUT_PASSPHRASE="${1#*=}"
+            INPUT_PASSPHRASE="${INPUT_PASSPHRASE:-"$LF"}"
+        ;;
+        --passphrase-fd)
+            arg_is_not_empty "$1" "${2:-}"
+            ARG_NUM="$((ARG_NUM + 1))"
+            PASSPHRASE_FD="$2"
+            PASSPHRASE_FILE=
+            shift
+        ;;
+        --passphrase-fd=*)
+            arg_is_not_empty "${1%%=*}" "${1#*=}"
+            PASSPHRASE_FD="${1#*=}"
+            PASSPHRASE_FILE=
+        ;;
+        --passphrase-file)
+            arg_is_not_empty "$1" "${2:-}"
+            ARG_NUM="$((ARG_NUM + 1))"
+            PASSPHRASE_FD=
+            PASSPHRASE_FILE="$2"
+            shift
+        ;;
+        --passphrase-file=*)
+            arg_is_not_empty "${1%%=*}" "${1#*=}"
+            PASSPHRASE_FD=
+            PASSPHRASE_FILE="${1#*=}"
+        ;;
         -q | --quiet)
             QUIET=--quiet
         ;;
@@ -1162,4 +1218,39 @@ do
 done
 unset -v ARG_NUM PREFIX
 
-main "$@"
+GPG_BIN="$(which gpg)"  || GPG_BIN=
+is_empty "${HELP:-}"    || show_help
+is_empty "${VERSION:-}" || show_version
+
+check_dependencies
+is_empty  "${GNUPGHOME:-}" || {
+    is_dir "$GNUPGHOME" || try 2 "no such directory: -- '$GNUPGHOME'"
+    export   GNUPGHOME
+}
+
+if is_edit_mode
+then
+    STATUS="$(2>&1 run_gpg --list-keys "$GPG_EDIT_KEY_ID")" || {
+        GPG_RETURN_CODE=$?
+        >&2 echo "${STATUS:-}"
+        die "$GPG_RETURN_CODE"
+    }
+fi
+
+is_diff $# 0 || try 2 "no batch file specified"
+TMP_GNUPGHOME="${TMP_GNUPGHOME:-"$(mktempdir)"}" || die "$TMP_GNUPGHOME"
+
+set_gpg_options
+for BATCH_FILE in "$@"
+do
+    can_read_file "${BATCH_FILE:-}" || {
+        GPG_RETURN_CODE=$?
+        is_not_empty "${FORCE:-}" || break
+        continue
+    }
+    run_batch_file || break
+done
+gpg_update_trustdb
+is_empty "${KEY_CREATED:+"${VERBOSE:-}"}" || say 0 "key created: $KEY_CREATED"
+STATUS="$(2>&1 "$RM" -rvf -- "$TMP_GNUPGHOME")" || die "[TMP_GNUPGHOME] $STATUS"
+exit "${GPG_RETURN_CODE:-0}"
