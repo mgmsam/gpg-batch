@@ -53,6 +53,18 @@ Options:
       --passphrase-file file
                             Read the passphrase from file. Only the first line
                             will be read from file.
+      --pinentry-mode mode  Set the pinentry mode to mode. Allowed values for
+                            mode are:
+                              default
+                                     Use the default of the agent, which is ask.
+                              ask    Force the use of the Pinentry.
+                              cancel Emulate use of Pinentry's cancel button.
+                              error  Return a Pinentry error ('No Pinentry').
+                              loopback
+                                     Redirect Pinentry queries to the caller.
+                                     Note that in contrast to Pinentry the user
+                                     is not prompted again if he enters a bad
+                                     password.
       --version             Display version information and exit.
   -h, -?, --help            Display this help and exit.
 
@@ -358,7 +370,7 @@ set_gpg_options ()
         }
 
     }
-    GPG_OPTIONS="${GPG_OPTIONS:-} ${ALLOW_WEAK_KEY_SIGNATURES:-} ${NO_TTY:-} ${QUIET:-} ${VERBOSE:-}"
+    GPG_OPTIONS="${GPG_OPTIONS:-} ${ALLOW_WEAK_KEY_SIGNATURES:-} ${PINENTRY_MODE:-} ${NO_TTY:-} ${QUIET:-} ${VERBOSE:-}"
 }
 
 set_key_variables ()
@@ -1091,10 +1103,26 @@ is_not_option ()
     done
 }
 
+set_pinentry_mode ()
+{
+    case "${2:-}" in
+        ask | cancel | default | error | loopback)
+            PINENTRY_MODE="--pinentry-mode $2"
+        ;;
+        "")
+            arg_is_not_empty "$1"
+        ;;
+        -*)
+            is_not_option "$1" "$2"
+            die 2 "invalid pinentry mode '$2'"
+        ;;
+    esac
+}
+
 PACKAGE_NAME="${0##*/}"
 LF='
 '
-OPTIONS="? h help version allow-weak-key-signatures force edit-key homedir no-tty options passphrase q quiet v verbose --"
+OPTIONS="? h help version allow-weak-key-signatures force edit-key homedir no-tty options passphrase pinentry-mode q quiet v verbose --"
 ARG_NUM=0
 while is_diff $# 0
 do
@@ -1185,6 +1213,14 @@ do
             arg_is_not_empty "${1%%=*}" "${1#*=}"
             PASSPHRASE_FD=
             PASSPHRASE_FILE="${1#*=}"
+        ;;
+        --pinentry-mode)
+            set_pinentry_mode "$1" "$2"
+            ARG_NUM="$((ARG_NUM + 1))"
+            shift
+        ;;
+        --pinentry-mode=*)
+            set_pinentry_mode "${1%%=*}" "${1#*=}"
         ;;
         -q | --quiet)
             QUIET=--quiet
