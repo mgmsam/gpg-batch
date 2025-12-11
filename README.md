@@ -235,104 +235,100 @@ Items are arranged in order of priority from the lowest to the highest
     ./gpg-batch.sh [OPTIONS] --passphrase-file /tmp/gpg.pass [--] BATCHFILE ...
     ```
 
-  - Specify the file descriptor containing the passphrase:
+- Specify the file descriptor containing the passphrase:
+
+  ```bash
+  cat /tmp/passphrase
+  ```
+
+  ```
+  My passphrase
+  ```
+
+  Open the file descriptor:
+
+  ```bash
+  exec 5< /tmp/passphrase
+  ```
+
+  - Specify the file descriptor in the options file:
 
     ```bash
-    cat /tmp/passphrase
+    cat ~/gpg.options
     ```
 
     ```
-    My passphrase
+    passphrase-fd 5
     ```
 
-    Open the file descriptor:
+    Then run key generation:
 
     ```bash
-    exec 5< /tmp/passphrase
+    ./gpg-batch.sh [OPTIONS] --options ~/gpg.options [--] BATCHFILE ...
     ```
 
-    - Specify the file descriptor in the options file:
+  - Specify the file descriptor in the arguments:
 
-      ```bash
-      cat ~/gpg.options
-      ```
+    ```bash
+    ./gpg-batch.sh [OPTIONS] --passphrase-fd 5 [--] BATCHFILE ...
+    ```
 
-      ```
-      passphrase-fd 5
-      ```
+  - The passphrase can be specified in the batch file as the first line before each master key:
 
-      Then run key generation:
+    ```
+    My passphrase 01
 
-      ```bash
-      ./gpg-batch.sh [OPTIONS] --options ~/gpg.options [--] BATCHFILE ...
-      ```
+    Key-Type:      EdDSA
+    Key-Curve:     ed25519
+    Key-Usage:     cert
 
-    - Specify the file descriptor in the arguments:
+    Name-Real:     ECC
+    Name-Comment:  Elliptic Curve Cryptography
+    Name-Email:    test1@example.com
 
-      ```bash
-      ./gpg-batch.sh [OPTIONS] --passphrase-fd 5 [--] BATCHFILE ...
-      ```
+    Expire-Date:   1m
 
-    - The passphrase can be specified in the batch file as the first line before each master key:
+    Subkey-Type:   ECDH
+    Subkey-Curve:  ed25519
+    Subkey-Usage:  encrypt
 
-      ```
-      My passphrase 01
+    %commit
+    My passphrase 02
 
-      Key-Type:      EdDSA
-      Key-Curve:     ed25519
-      Key-Usage:     cert
+    Key-Type:      EdDSA
+    Key-Curve:     ed25519
+    Key-Usage:     cert
 
-      Name-Real:     ECC
-      Name-Comment:  Elliptic Curve Cryptography
-      Name-Email:    test1@example.com
+    Name-Real:     ECC
+    Name-Comment:  Elliptic Curve Cryptography
+    Name-Email:    test2@example.com
 
-      Expire-Date:   1m
+    Subkey-Type:   ELG
+    Subkey-Length: 4096
+    Subkey-Usage:  Encrypt
+    ```
 
-      Subkey-Type:   ECDH
-      Subkey-Curve:  ed25519
-      Subkey-Usage:  encrypt
+    > _**WARNING:** Ensure the privacy of passphrases_
+    >
+    > If the line is empty, the key is generated without a passphrase.
+    >
+    > Pay attention to the required keyword `%commit`. If it is not specified, the line `My passphrase 02` will be included in the parameters of the first key.
+    >
+    > _**WARNING:** NOT TESTED !!!_
 
-      %commit
-      My passphrase 02
+    Then run key generation:
 
-      Key-Type:      EdDSA
-      Key-Curve:     ed25519
-      Key-Usage:     cert
+    ```bash
+    ./gpg-batch.sh [OPTIONS] --passphrase-fd 0 [--] BATCHFILE ...
+    ```
 
-      Name-Real:     ECC
-      Name-Comment:  Elliptic Curve Cryptography
-      Name-Email:    test2@example.com
+  - The passphrase can be passed on STDIN:
 
-      Subkey-Type:   ELG
-      Subkey-Length: 4096
-      Subkey-Usage:  Encrypt
-      ```
+    ```bash
+    echo 'My passphrase' | ./gpg-batch.sh [OPTIONS] --passphrase-fd 0 [--] BATCHFILE ...
+    ```
 
-      > _**WARNING:** Ensure the privacy of passphrases_
-      >
-      > If the line is empty, the key is generated without a passphrase.
-      >
-      > Pay attention to the required keyword `%commit`. If it is not specified, the line `My passphrase 02` will be included in the parameters of the first key.
-      >
-      > _**WARNING:** NOT TESTED !!!_
-
-      Then run key generation:
-
-      ```bash
-      ./gpg-batch.sh [OPTIONS] --passphrase-fd 0 [--] BATCHFILE ...
-      ```
-
-    - The passphrase can be passed on STDIN:
-
-      ```bash
-      echo 'My passphrase' | ./gpg-batch.sh [OPTIONS] --passphrase-fd 0 [--] BATCHFILE ...
-      ```
-
-      > The passphrase is applied to all generated keys, but only if its own passphrase is not specified in the batch file using the `Passphrase:` parameter and the `%no-protection` parameter is absent; see further.
-
-  When both `--passphrase-fd` and `--passphrase-file` are specified, the last discovered option takes precedence.
-
-  The `--passphrase` option is only applied if both `--passphrase-fd` and `--passphrase-file` are absent, both in the arguments and in the options file.
+    > The passphrase is applied to all generated keys, but only if its own passphrase is not specified in the batch file using the `Passphrase:` parameter and the `%no-protection` parameter is absent; see further.
 
 - Specify the passphrase in the batch file:
 
@@ -342,3 +338,9 @@ Items are arranged in order of priority from the lowest to the highest
 
   - *__`%no-protection`__*
             Using this option allows the creation of keys without any passphrase protection. This option is mainly intended for regression tests.
+
+---
+
+When both `--passphrase-fd` and `--passphrase-file` are specified, the last discovered option takes precedence.
+
+The `--passphrase` option is only applied if both `--passphrase-fd` and `--passphrase-file` are absent, both in the arguments and in the options file.
