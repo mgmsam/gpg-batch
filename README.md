@@ -9,6 +9,7 @@ This script extends the following features of batch mode:
 - master key generation with multiple subkeys
 - adding multiple subkeys to the master key
 - setting the expiration date for each subkey individually
+- before the generation of each key begins, the parameters of both the master key and each subkey are tested
 
 # Usage
 
