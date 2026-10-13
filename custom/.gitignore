@@ -1,0 +1,4 @@
+# Directory for personal GPG batch files.
+# Files placed here are ignored by Git and stay local to your machine.
+*
+!.gitignore
