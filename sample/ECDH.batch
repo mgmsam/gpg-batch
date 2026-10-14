@@ -6,6 +6,11 @@
 #
 # NOTE: This file is intended to be applied to an existing key via
 # `gpg --edit-key`, not to create a new one.
+#
+# WARNING: In interactive mode (gpg --edit-key), GnuPG does NOT
+# allow ed* curves for an encryption subkey. If ed25519 or ed448
+# is specified, GnuPG silently replaces it with cv25519 or cv448
+# respectively. Use cv* curves directly to make the intent explicit.
 
 # Print text as diagnostic.
 %echo Generating an OpenPGP ECDH (algo 18) subkey
@@ -20,7 +25,8 @@ Subkey-Type:   ECDH
 
 # Available elliptic curves for the Subkey-Type: ECDH
 #   cv25519 ───────────┐
-#   ed25519 ───────────┼─> The register does not matter
+#   ed25519 ───────────┼─> ed25519 is silently replaced with
+#   cv448 ─────────────┤   cv25519, ed448 with cv448
 #   ed448 ─────────────┘
 #   nistp256 ──────────┐
 #   nistp384 ──────────┤
@@ -44,17 +50,11 @@ Subkey-Usage:  encrypt
 Expire-Date:   1d
 
 Subkey-Type:   ECDH
-
-# In interactive mode (gpg --edit-key), GnuPG does NOT allow
-# ed25519 for an encryption subkey. It silently uses cv25519
-# instead. To get ed25519 for encryption, it must be the first
-# subkey generated together with the master key in batch mode.
-# Here cv25519 will be used in place of ed25519.
-Subkey-Curve:  ed25519
+Subkey-Curve:  cv25519
 Expire-Date:   2d
 
 Subkey-Type:   ECDH
-Subkey-Curve:  ed448
+Subkey-Curve:  cv448
 Expire-Date:   3d
 
 Subkey-Type:   ECDH
