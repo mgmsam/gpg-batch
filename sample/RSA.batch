@@ -1,8 +1,19 @@
-# This file is an example to demonstrate the features gpg-batch.sh.
+# This file is an example to demonstrate the features of gpg-batch.sh.
 # Tested with GnuPG version 2.4.4
-# A detailed description of the parameters can be found
-# on the official website of the GnuPG project:
+# A detailed description of the parameters can be found on the official
+# website of the GnuPG project:
 #   https://www.gnupg.org/documentation/manuals/gnupg-devel/Unattended-GPG-key-generation.html
+#
+# NOTE: GnuPG batch mode can generate only ONE subkey. Additional
+# subkeys must be added interactively via `gpg --edit-key`.
+#
+# NOTE: RSA subkey lengths are rounded up to the nearest value
+# supported by GnuPG. For example, 1048 is rounded up to 1056,
+# and 2000 is rounded up to 2016.
+#
+# NOTE: For RSA subkeys, GnuPG may add the Encrypt flag
+# automatically if the usage list does not explicitly forbid it.
+# For example, Subkey-Usage: Auth results in [AR], not [A].
 
 # Print text as diagnostic.
 %echo Generating an OpenPGP RSA (algo 1) key
