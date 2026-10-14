@@ -1,0 +1,51 @@
+# This file is an example to demonstrate the features of gpg-batch.sh.
+# Tested with GnuPG version 2.4.4
+# A detailed description of the parameters can be found on the official
+# website of the GnuPG project:
+#   https://www.gnupg.org/documentation/manuals/gnupg-devel/Unattended-GPG-key-generation.html
+#
+# NOTE: GnuPG batch mode can generate only ONE subkey. Additional
+# subkeys must be added interactively via `gpg --edit-key`.
+#
+# WARNING: This file creates a key WITHOUT a passphrase.
+# This is intended for CI/CD, ephemeral keys, or regression
+# testing. Do NOT use for production keys that protect
+# sensitive data.
+
+# Print text as diagnostic.
+%echo Generating an OpenPGP EdDSA (algo 22) key
+%echo EdDSA (Edwards-curve Digital Signature Algorithm)
+
+# Set EdDSA or 22
+# The register does not matter
+Key-Type:      EdDSA
+Key-Curve:     ed25519
+Key-Usage:     cert
+
+Name-Real:     No-Protection
+Name-Comment:  Key without passphrase protection
+Name-Email:    test@example.com
+
+#    0 = key does not expire
+# <n>  = key expires in n days
+# <n>w = key expires in n weeks
+# <n>m = key expires in n months
+# <n>y = key expires in n years
+# Default: 0
+# The register does not matter.
+Expire-Date:   1d
+
+# In batch mode, only the first subkey is generated here.
+# The remaining subkeys are added by gpg-batch.sh via
+# `gpg --edit-key`.
+Subkey-Type:   ECDH
+Subkey-Curve:  cv25519
+Subkey-Usage:  encrypt
+Expire-Date:   1d
+
+# Create the key without any passphrase protection.
+# See the WARNING above.
+%no-protection
+
+%commit
+%echo Done
