@@ -1,8 +1,11 @@
-# This file is an example to demonstrate the features gpg-batch.sh.
+# This file is an example to demonstrate the features of gpg-batch.sh.
 # Tested with GnuPG version 2.4.4
-# A detailed description of the parameters can be found
-# on the official website of the GnuPG project:
+# A detailed description of the parameters can be found on the official
+# website of the GnuPG project:
 #   https://www.gnupg.org/documentation/manuals/gnupg-devel/Unattended-GPG-key-generation.html
+#
+# NOTE: GnuPG batch mode can generate only ONE subkey. Additional
+# subkeys must be added interactively via `gpg --edit-key`.
 
 # Print text as diagnostic.
 %echo Generating an OpenPGP EdDSA (algo 22) key
@@ -19,7 +22,7 @@ Key-Type:      EdDSA
 #   nistp256 ──────────┐
 #   nistp384 ──────────┤
 #   nistp521 ──────────┤
-#   brainpoolP256r1 ───┼─> The register matters
+#   brainpoolP256r1 ───┼─> Not supported for EdDSA
 #   brainpoolP384r1 ───┤
 #   brainpoolP512r1 ───┤
 #   secp256k1 ─────────┘
@@ -43,6 +46,9 @@ Name-Email:    test@example.com
 # The register does not matter.
 Expire-Date:   1d
 
+# In batch mode, only the first subkey is generated here.
+# The remaining subkeys are added by gpg-batch.sh via
+# `gpg --edit-key`.
 Subkey-Type:   EdDSA
 Subkey-Curve:  ed25519
 
@@ -53,37 +59,3 @@ Subkey-Type:   EdDSA
 Subkey-Curve:  ed448
 Subkey-Usage:  Sign
 Expire-Date:   3d
-
-Subkey-Type:   EdDSA
-Subkey-Curve:  nistp256
-Subkey-Usage:  Sign,Auth
-Expire-Date:   4d
-
-Subkey-Type:   EdDSA
-Subkey-Curve:  nistp384
-Subkey-Usage:  Auth, Sign
-Expire-Date:   5d
-
-Subkey-Type:   EdDSA
-Subkey-Curve:  nistp521
-Subkey-Usage:  Sign,auth
-Expire-Date:   6d
-
-Subkey-Type:   EdDSA
-Subkey-Curve:  brainpoolP256r1
-Subkey-Usage:  Auth,sign
-Expire-Date:   1w
-
-Subkey-Type:   EdDSA
-Subkey-Curve:  brainpoolP384r1
-Subkey-Usage:  Auth,Sign
-Expire-Date:   2w
-
-Subkey-Type:   EdDSA
-Subkey-Curve:  brainpoolP512r1
-Subkey-Usage:  Sign, Cert, Auth
-Expire-Date:   1m
-
-Subkey-Type:   EdDSA
-Subkey-Curve:  secp256k1
-Subkey-Usage:  auth Cert sign
