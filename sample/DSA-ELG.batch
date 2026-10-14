@@ -1,0 +1,57 @@
+# This file is an example to demonstrate the features of gpg-batch.sh.
+# Tested with GnuPG version 2.4.4
+# A detailed description of the parameters can be found on the official
+# website of the GnuPG project:
+#   https://www.gnupg.org/documentation/manuals/gnupg-devel/Unattended-GPG-key-generation.html
+#
+# NOTE: GnuPG batch mode can generate only ONE subkey. Additional
+# subkeys must be added interactively via `gpg --edit-key`.
+#
+# NOTE: DSA is a signature-only algorithm. ElGamal is an
+# encryption-only algorithm. This combination is the classic
+# hybrid key pair: DSA for signing, ElGamal for encryption.
+
+# Print text as diagnostic.
+%echo Generating an OpenPGP DSA (algo 17) key
+%echo DSA (Digital Signature Algorithm)
+
+# Set DSA or 17
+# The register does not matter
+Key-Type:      DSA
+
+# DSA keys may be between 768 and 3072 bits long
+# Default: 2048
+Key-Length:    3072
+
+# Default: sign, cert, auth [SCA] (encrypt - not supported)
+# The register does not matter.
+# The separator can be either a comma or a space.
+Key-Usage:     cert
+
+Name-Real:     DSA-ELG
+Name-Comment:  DSA + ElGamal hybrid key
+Name-Email:    test@example.com
+
+#    0 = key does not expire
+# <n>  = key expires in n days
+# <n>w = key expires in n weeks
+# <n>m = key expires in n months
+# <n>y = key expires in n years
+# Default: 0
+# The register does not matter.
+Expire-Date:   1y
+
+# In batch mode, only the first subkey is generated here.
+# The remaining subkeys are added by gpg-batch.sh via
+# `gpg --edit-key`.
+Subkey-Type:   ELG
+Subkey-Length: 4096
+
+# Default: encrypt [E] (sign,cert,auth - not supported)
+Subkey-Usage:  Encrypt
+Expire-Date:   1m
+
+Subkey-Type:   ELG
+Subkey-Length: 2048
+Subkey-Usage:  Encrypt
+Expire-Date:   1w
