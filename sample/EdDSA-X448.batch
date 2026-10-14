@@ -1,0 +1,45 @@
+# This file is an example to demonstrate the features of gpg-batch.sh.
+# Tested with GnuPG version 2.4.4
+# A detailed description of the parameters can be found on the official
+# website of the GnuPG project:
+#   https://www.gnupg.org/documentation/manuals/gnupg-devel/Unattended-GPG-key-generation.html
+#
+# NOTE: GnuPG batch mode can generate only ONE subkey. Additional
+# subkeys must be added interactively via `gpg --edit-key`.
+#
+# NOTE: Ed25519 is a signature-only curve. X448 is an
+# encryption-only curve. This combination is the modern ECC
+# hybrid key pair for v5 keys.
+
+# Print text as diagnostic.
+%echo Generating an OpenPGP EdDSA (algo 22) key
+%echo EdDSA (Edwards-curve Digital Signature Algorithm)
+
+# Set EdDSA or 22
+# The register does not matter
+Key-Type:      EdDSA
+Key-Curve:     ed25519
+Key-Usage:     cert
+
+Name-Real:     EdDSA-X448
+Name-Comment:  Ed25519 + X448 hybrid key
+Name-Email:    test@example.com
+
+#    0 = key does not expire
+# <n>  = key expires in n days
+# <n>w = key expires in n weeks
+# <n>m = key expires in n months
+# <n>y = key expires in n years
+# Default: 0
+# The register does not matter.
+Expire-Date:   1y
+
+# In batch mode, only the first subkey is generated here.
+# The remaining subkeys are added by gpg-batch.sh via
+# `gpg --edit-key`.
+Subkey-Type:   ECDH
+Subkey-Curve:  X448
+
+# Default: encrypt [E] (sign,cert,auth - not supported)
+Subkey-Usage:  Encrypt
+Expire-Date:   1m
