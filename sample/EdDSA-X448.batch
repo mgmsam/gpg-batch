@@ -7,9 +7,11 @@
 # NOTE: GnuPG batch mode can generate only ONE subkey. Additional
 # subkeys must be added interactively via `gpg --edit-key`.
 #
-# NOTE: Ed25519 is a signature-only curve. X448 is an
-# encryption-only curve. This combination is the modern ECC
-# hybrid key pair for v5 keys.
+# NOTE: This key follows the master + subkeys model:
+#   - master key: cert only
+#   - subkey 1: sign only
+#   - subkey 2: encrypt only
+#   - subkey 3: auth only
 
 # Print text as diagnostic.
 %echo Generating an OpenPGP EdDSA (algo 22) key
@@ -18,7 +20,23 @@
 # Set EdDSA or 22
 # The register does not matter
 Key-Type:      EdDSA
+
+# Available elliptic curves for the Key-Type: EdDSA
+#   cv25519 ─────────────> Not supported
+#   ed25519 ───────────┐
+#   ed448 ─────────────┴─> The register does not matter
+#   nistp256 ──────────┐
+#   nistp384 ──────────┤
+#   nistp521 ──────────┤
+#   brainpoolP256r1 ───┼─> Not supported for EdDSA
+#   brainpoolP384r1 ───┤
+#   brainpoolP512r1 ───┤
+#   secp256k1 ─────────┘
 Key-Curve:     ed25519
+
+# Default: sign, cert, auth [SCA] (encrypt - not supported)
+# The register does not matter.
+# The separator can be either a comma or a space.
 Key-Usage:     cert
 
 Name-Real:     EdDSA-X448
@@ -32,14 +50,32 @@ Name-Email:    test@example.com
 # <n>y = key expires in n years
 # Default: 0
 # The register does not matter.
-Expire-Date:   1y
+Expire-Date:   1m
 
 # In batch mode, only the first subkey is generated here.
 # The remaining subkeys are added by gpg-batch.sh via
 # `gpg --edit-key`.
-Subkey-Type:   ECDH
-Subkey-Curve:  X448
+Subkey-Type:   EdDSA
 
-# Default: encrypt [E] (sign,cert,auth - not supported)
-Subkey-Usage:  Encrypt
-Expire-Date:   1m
+# Available elliptic curves for the Subkey-Type: EdDSA
+#   ed25519 ───────────┐
+#   ed448 ─────────────┴─> The register matters
+Subkey-Curve:  ed25519
+Subkey-Usage:  sign
+Expire-Date:   1w
+
+Subkey-Type:   ECDH
+
+# Available elliptic curves for the Subkey-Type: ECDH
+#   cv25519 ───────────┐
+#   ed25519 ───────────┼─> The register does not matter
+#   cv448 ─────────────┤
+#   ed448 ─────────────┘
+Subkey-Curve:  X448
+Subkey-Usage:  encrypt
+Expire-Date:   1w
+
+Subkey-Type:   EdDSA
+Subkey-Curve:  ed25519
+Subkey-Usage:  auth
+Expire-Date:   1d
