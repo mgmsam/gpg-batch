@@ -1,8 +1,11 @@
-# This file is an example to demonstrate the features gpg-batch.sh.
+# This file is an example to demonstrate the features of gpg-batch.sh.
 # Tested with GnuPG version 2.4.4
-# A detailed description of the parameters can be found
-# on the official website of the GnuPG project:
+# A detailed description of the parameters can be found on the official
+# website of the GnuPG project:
 #   https://www.gnupg.org/documentation/manuals/gnupg-devel/Unattended-GPG-key-generation.html
+#
+# NOTE: GnuPG batch mode can generate only ONE subkey. Additional
+# subkeys must be added interactively via `gpg --edit-key`.
 
 # Print text as diagnostic.
 %echo Generating an OpenPGP ECC (algo 22) key
@@ -43,12 +46,19 @@ Name-Email:    test@example.com
 # The register does not matter.
 Expire-Date:   1m
 
-# Only the first subkey for encryption
-# can be generated based on the ed25519 algorithm.
-# Use the same expiration date for the first subkey
-# and the master key, otherwise, the subkey will be
-# generated interactively and then the cv25519 elliptic
-# curve will be used in place of the ed25519 algorithm.
+# IMPORTANT: For the first encryption subkey, use the SAME
+# Expire-Date as the master key (e.g., both 1m).
+#
+# If the dates differ, gpg-batch.sh cannot generate the master
+# key and the first subkey in a single batch run. It will fall
+# back to interactive mode for every subkey.
+#
+# In interactive mode (gpg --edit-key), GnuPG does NOT allow
+# ed25519 for an encryption subkey. It silently uses cv25519
+# instead.
+#
+# To keep ed25519 for the first encryption subkey, the batch
+# run must succeed — and for that, the expiration dates must match.
 Subkey-Type:   ECDH
 
 # Available elliptic curves for the 'Subkey-Type: ECDH':
@@ -62,6 +72,8 @@ Subkey-Type:   ECDH
 #   brainpoolP384r1 ───┤
 #   brainpoolP512r1 ───┤
 #   secp256k1 ─────────┘
+# The following curve (ed25519) is used here for demonstration
+# purposes only. GnuPG may silently replace it with cv25519.
 Subkey-Curve:  ed25519
 Subkey-Usage:  encrypt
 
