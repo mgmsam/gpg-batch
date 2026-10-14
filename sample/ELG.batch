@@ -1,8 +1,11 @@
-# This file is an example to demonstrate the features gpg-batch.sh.
+# This file is an example to demonstrate the features of gpg-batch.sh.
 # Tested with GnuPG version 2.4.4
-# A detailed description of the parameters can be found
-# on the official website of the GnuPG project:
+# A detailed description of the parameters can be found on the official
+# website of the GnuPG project:
 #   https://www.gnupg.org/documentation/manuals/gnupg-devel/Unattended-GPG-key-generation.html
+#
+# NOTE: This file is intended to be applied to an existing key via
+# `gpg --edit-key`, not to create a new one.
 
 # Print text as diagnostic.
 %echo Generating an OpenPGP ELG (algo 16) subkey
