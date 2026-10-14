@@ -1,8 +1,11 @@
-# This file is an example to demonstrate the features gpg-batch.sh.
+# This file is an example to demonstrate the features of gpg-batch.sh.
 # Tested with GnuPG version 2.4.4
-# A detailed description of the parameters can be found
-# on the official website of the GnuPG project:
+# A detailed description of the parameters can be found on the official
+# website of the GnuPG project:
 #   https://www.gnupg.org/documentation/manuals/gnupg-devel/Unattended-GPG-key-generation.html
+#
+# NOTE: GnuPG batch mode can generate only ONE subkey. Additional
+# subkeys must be added interactively via `gpg --edit-key`.
 
 # Print text as diagnostic.
 %echo Generating an OpenPGP ECDSA (algo 19) subkey
@@ -47,8 +50,8 @@ Subkey-Type:   ECDSA
 
 # Available elliptic curves for the Subkey-Type: ECDSA
 #   cv25519 ─────────────> Not supported
-#   ed25519 ───────────┐
-#   ed448 ─────────────┴─> The register does not matter (with Subkey-Usage: auth, cert*)
+#   ed25519 ─────────────> Not supported (use Subkey-Type: EdDSA)
+#   ed448 ───────────────> Not supported (use Subkey-Type: EdDSA)
 #   nistp256 ──────────┐
 #   nistp384 ──────────┤
 #   nistp521 ──────────┤
@@ -56,46 +59,58 @@ Subkey-Type:   ECDSA
 #   brainpoolP384r1 ───┤
 #   brainpoolP512r1 ───┤
 #   secp256k1 ─────────┘
-Subkey-Curve:  ed25519
+Subkey-Curve:  nistp256
 
 # Default: sign,auth [SA] (cert - ignored; encrypt - not supported)
 Subkey-Usage:  auth
 
 Subkey-Type:   ECDSA
-Subkey-Curve:  ed448
+Subkey-Curve:  nistp384
 Subkey-Usage:  auth
 Expire-Date:   3d
 
-Subkey-Type:   EdDSA
-Subkey-Curve:  nistp256
-Subkey-Usage:  Sign,Auth
+Subkey-Type:   ECDSA
+Subkey-Curve:  nistp521
+Subkey-Usage:  auth
 Expire-Date:   4d
 
 Subkey-Type:   EdDSA
-Subkey-Curve:  nistp384
-Subkey-Usage:  Auth, Sign
+
+# Available elliptic curves for the Subkey-Type: EdDSA
+#   ed25519 ───────────┐
+#   ed448 ─────────────┴─> The register matters
+#   nistp256 ──────────┐
+#   nistp384 ──────────┤
+#   nistp521 ──────────┤
+#   brainpoolP256r1 ───┼─> Not supported
+#   brainpoolP384r1 ───┤
+#   brainpoolP512r1 ───┤
+#   secp256k1 ─────────┘
+Subkey-Curve:  ed25519
+Subkey-Usage:  auth
 Expire-Date:   5d
 
 Subkey-Type:   EdDSA
-Subkey-Curve:  nistp521
-Subkey-Usage:  Sign,auth
+Subkey-Curve:  ed448
+Subkey-Usage:  auth
 Expire-Date:   6d
 
-Subkey-Type:   EdDSA
+Subkey-Type:   ECDSA
 Subkey-Curve:  brainpoolP256r1
-Subkey-Usage:  Auth,sign
+Subkey-Usage:  sign,auth
 Expire-Date:   1w
 
-Subkey-Type:   EdDSA
+Subkey-Type:   ECDSA
 Subkey-Curve:  brainpoolP384r1
-Subkey-Usage:  Auth,Sign
+Subkey-Usage:  auth,sign
 Expire-Date:   2w
 
-Subkey-Type:   EdDSA
+Subkey-Type:   ECDSA
 Subkey-Curve:  brainpoolP512r1
-Subkey-Usage:  Sign, Cert, Auth
+Subkey-Usage:  sign,auth
 Expire-Date:   1m
 
-Subkey-Type:   EdDSA
+Subkey-Type:   ECDSA
 Subkey-Curve:  secp256k1
-Subkey-Usage:  auth Cert sign
+Subkey-Usage:  auth,sign
+Expire-Date:   2m
